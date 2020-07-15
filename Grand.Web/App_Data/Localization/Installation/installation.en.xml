@@ -41,6 +41,9 @@
   <LocaleResource Name="CreateSampleData">
     <Value>Create sample data</Value>
   </LocaleResource>
+    <LocaleResource Name="ConnectToExistingDb">
+    <Value>Connect to exisiting database.</Value>
+  </LocaleResource>
   <LocaleResource Name="CustomCollation">
     <Value>Specify custom MongoDB Server collation</Value>
   </LocaleResource>

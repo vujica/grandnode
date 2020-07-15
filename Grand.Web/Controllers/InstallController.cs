@@ -153,7 +153,7 @@ namespace Grand.Web.Controllers
                     var filter = new BsonDocument("name", "GrandNodeVersion");
                     var found = database.ListCollectionsAsync(new ListCollectionsOptions { Filter = filter }).Result;
 
-                    if (found.Any())
+                    if (found.Any() && !model.ConnectToExistingDb)
                         ModelState.AddModelError("", locService.GetResource("AlreadyInstalled"));
                 }
                 catch (Exception ex)
@@ -182,27 +182,33 @@ namespace Grand.Web.Controllers
                 var settingsManager = new DataSettingsManager();
                 try
                 {
-                    //save settings
+                    //save settings to ~/App_Data/Settings.txt
                     var settings = new DataSettings {
                         DataProvider = "mongodb",
                         DataConnectionString = connectionString
                     };
                     settingsManager.SaveSettings(settings);
 
+                    // set the connectionstring in Settings.txt
                     var dataProviderInstance = _serviceProvider.GetRequiredService<BaseDataProviderManager>().LoadDataProvider();
                     dataProviderInstance.InitDatabase();
 
+                    // get the settings from Settings.txt
                     var dataSettingsManager = new DataSettingsManager();
                     var dataProviderSettings = dataSettingsManager.LoadSettings(reloadSettings: true);
 
-                    var installationService = _serviceProvider.GetRequiredService<IInstallationService>();
-                    await installationService.InstallData(model.AdminEmail, model.AdminPassword, model.Collation, model.InstallSampleData);
-
+                    if(!model.ConnectToExistingDb)
+                    {
+                        // (1) create collections in database and (2) create the admin user with the password and (3) create the sample data if necessary
+                        var installationService = _serviceProvider.GetRequiredService<IInstallationService>();
+                        await installationService.InstallData(model.AdminEmail, model.AdminPassword, model.Collation, model.InstallSampleData);
+                    }
+                    
                     //reset cache
                     DataSettingsHelper.ResetCache();
-
+                    
                     //install plugins
-                    PluginManager.MarkAllPluginsAsUninstalled();
+                    PluginManager.MarkAllPluginsAsUninstalled();  // removes "~/App_Data/InstalledPlugins.txt"
                     var pluginFinder = _serviceProvider.GetRequiredService<IPluginFinder>();
                     var plugins = pluginFinder.GetPlugins<IPlugin>(LoadPluginsMode.All)
                         .ToList()
@@ -234,13 +240,16 @@ namespace Grand.Web.Controllers
                         }
                     }
 
-                    //register default permissions
-                    var permissionProviders = new List<Type>();
-                    permissionProviders.Add(typeof(StandardPermissionProvider));
-                    foreach (var providerType in permissionProviders)
+                    if(!model.ConnectToExistingDb)
                     {
-                        var provider = (IPermissionProvider)Activator.CreateInstance(providerType);
-                        await _mediator.Send(new InstallPermissionsCommand() { PermissionProvider = provider });
+                        //register default permissions
+                        var permissionProviders = new List<Type>();
+                        permissionProviders.Add(typeof(StandardPermissionProvider));
+                        foreach (var providerType in permissionProviders)
+                        {
+                            var provider = (IPermissionProvider)Activator.CreateInstance(providerType);
+                            await _mediator.Send(new InstallPermissionsCommand() { PermissionProvider = provider });
+                        }
                     }
 
                     //restart application

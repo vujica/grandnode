@@ -13,12 +13,11 @@ namespace Grand.Web.Validators.Install
             IInstallationLocalizationService locService)
             : base(validators)
         {
-            RuleFor(x => x.AdminEmail).NotEmpty().WithMessage(locService.GetResource("AdminEmailRequired"));
-            RuleFor(x => x.AdminEmail).EmailAddress();
-            RuleFor(x => x.AdminPassword).NotEmpty().WithMessage(locService.GetResource("AdminPasswordRequired"));
-            RuleFor(x => x.ConfirmPassword).NotEmpty().WithMessage(locService.GetResource("ConfirmPasswordRequired"));
-            RuleFor(x => x.AdminPassword).Equal(x => x.ConfirmPassword).WithMessage(locService.GetResource("PasswordsDoNotMatch"));
-            
+            RuleFor(x => x.AdminEmail).NotEmpty().When(x => !x.ConnectToExistingDb).WithMessage(locService.GetResource("AdminEmailRequired"));
+            RuleFor(x => x.AdminEmail).EmailAddress().When(x => !x.ConnectToExistingDb);
+            RuleFor(x => x.AdminPassword).NotEmpty().When(x => !x.ConnectToExistingDb).WithMessage(locService.GetResource("AdminPasswordRequired"));
+            RuleFor(x => x.ConfirmPassword).NotEmpty().When(x => !x.ConnectToExistingDb).WithMessage(locService.GetResource("ConfirmPasswordRequired"));
+            RuleFor(x => x.AdminPassword).Equal(x => x.ConfirmPassword).When(x => !x.ConnectToExistingDb).WithMessage(locService.GetResource("PasswordsDoNotMatch"));            
         }
     }
 }

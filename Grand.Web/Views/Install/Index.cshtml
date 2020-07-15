@@ -62,6 +62,22 @@
                         $('.mongoDBDatabaseName').append(element);
                     }
                 }
+
+                $(document).ready(function () {
+                    $('input:checkbox[name=ConnectToExistingDb]').click(toggleAdminCard);
+                    toggleMongoDBConnectionInfo();
+
+                });
+                function toggleAdminCard() {
+                    if ($('#@Html.IdFor(model => model.ConnectToExistingDb)').is(':checked')) {
+                        $('#adminData').hide();
+                        $('#createSampleData').hide();
+                    } else {
+                        $('#adminData').show();
+                        $('#createSampleData').show();
+                    }
+                }
+
                 </script>
                 <div class="row flex-row">
                     <div class="col-6">
@@ -86,7 +102,7 @@
                         </div>
                     </p>
                 </div>
-                <div class="card">
+                <div id="adminData" class="card">
                     <h3 class="card-header">
                         @ILS.GetResource("StoreInformation")
                     </h3>
@@ -113,9 +129,9 @@
                         </div>
                     </div>
                 </div>
-                @if (!Model.DisableSampleDataOption)
+                @if (!Model.DisableSampleDataOption || !Model.ConnectToExistingDb)
                 {
-                    <div nowrap="nowrap" align="left">
+                    <div id="createSampleData" nowrap="nowrap" align="left">
                         <label class="custom-control custom-checkbox my-3">
                             <input asp-for="InstallSampleData" class="custom-control-input" />
                             <span class="custom-control-label"></span>
@@ -123,6 +139,13 @@
                         </label>
                     </div>
                 }
+                <div nowrap="nowrap" align="left">
+                        <label class="custom-control custom-checkbox my-3">
+                            <input asp-for="ConnectToExistingDb" class="custom-control-input" />
+                            <span class="custom-control-label"></span>
+                            <span class="custom-control-description">@ILS.GetResource("ConnectToExistingDb")</span>
+                        </label>
+                    </div>
                 <section id="MongoDBConnectionInformation">
                     <div id="MongoDBSimpleData">
                         <div class="card">
@@ -162,9 +185,6 @@
                                         <input asp-for="MongoDBPassword" class="form-control password" />
                                     </div>
                                 </div>
-
-
-
                             </div>
                         </div>
                     </div>
