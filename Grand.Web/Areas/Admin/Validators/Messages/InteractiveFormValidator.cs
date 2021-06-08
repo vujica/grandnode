@@ -1,5 +1,5 @@
 ﻿using FluentValidation;
-using Grand.Framework.Validators;
+using Grand.Core.Validators;
 using Grand.Services.Localization;
 using Grand.Web.Areas.Admin.Models.Messages;
 using System.Collections.Generic;
@@ -14,6 +14,7 @@ namespace Grand.Web.Areas.Admin.Validators.Messages
             : base(validators)
         {
             RuleFor(x => x.Name).NotEmpty().WithMessage(localizationService.GetResource("Admin.Promotions.InteractiveForms.Fields.Name.Required"));
+            RuleFor(x => x.SystemName).NotEmpty().WithMessage(localizationService.GetResource("Admin.Promotions.InteractiveForms.Fields.SystemName.Required"));
             RuleFor(x => x.Body).NotEmpty().WithMessage(localizationService.GetResource("Admin.Promotions.InteractiveForms.Fields.Body.Required"));
         }
     }

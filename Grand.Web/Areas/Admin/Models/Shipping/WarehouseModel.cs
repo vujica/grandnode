@@ -1,28 +1,32 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Grand.Web.Areas.Admin.Models.Common;
-using Grand.Web.Areas.Admin.Validators.Shipping;
 
 namespace Grand.Web.Areas.Admin.Models.Shipping
 {
-    [Validator(typeof(WarehouseValidator))]
-    public partial class WarehouseModel : BaseGrandEntityModel
+    public partial class WarehouseModel : BaseEntityModel
     {
         public WarehouseModel()
         {
-            this.Address = new AddressModel();
+            Address = new AddressModel();
         }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.Name")]
-        
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.AdminComment")]
-        
         public string AdminComment { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.Latitude")]
+        public double? Latitude { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.Longitude")]
+        public double? Longitude { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.Address")]
         public AddressModel Address { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Shipping.Warehouses.Fields.DisplayOrder")]
+        public int DisplayOrder { get; set; }
     }
 }

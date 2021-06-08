@@ -1,4 +1,6 @@
-﻿using Grand.Domain.Seo;
+﻿using Grand.Core;
+using Grand.Domain.Customers;
+using Grand.Domain.Seo;
 using Grand.Framework.Kendoui;
 using Grand.Framework.Mvc;
 using Grand.Framework.Mvc.Filters;
@@ -8,6 +10,7 @@ using Grand.Services.Localization;
 using Grand.Services.Logging;
 using Grand.Services.Security;
 using Grand.Services.Seo;
+using Grand.Services.Stores;
 using Grand.Web.Areas.Admin.Extensions;
 using Grand.Web.Areas.Admin.Models.Catalog;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace Grand.Web.Areas.Admin.Controllers
 {
-    [PermissionAuthorize(PermissionSystemName.Attributes)]
+    [PermissionAuthorize(PermissionSystemName.SpecificationAttributes)]
     public partial class SpecificationAttributeController : BaseAdminController
     {
         #region Fields
@@ -26,6 +29,8 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly ILanguageService _languageService;
         private readonly ILocalizationService _localizationService;
         private readonly ICustomerActivityService _customerActivityService;
+        private readonly IStoreService _storeService;
+        private readonly IWorkContext _workContext;
         private readonly SeoSettings _seoSettings;
 
         #endregion Fields
@@ -36,12 +41,16 @@ namespace Grand.Web.Areas.Admin.Controllers
             ILanguageService languageService,
             ILocalizationService localizationService,
             ICustomerActivityService customerActivityService,
+            IStoreService storeService,
+            IWorkContext workContext,
             SeoSettings seoSettings)
         {
             _specificationAttributeService = specificationAttributeService;
             _languageService = languageService;
             _localizationService = localizationService;
             _customerActivityService = customerActivityService;
+            _storeService = storeService;
+            _workContext = workContext;
             _seoSettings = seoSettings;
         }
 
@@ -55,6 +64,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult List() => View();
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         public async Task<IActionResult> List(DataSourceRequest command)
         {
             var specificationAttributes = await _specificationAttributeService
@@ -68,21 +78,31 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //create
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = new SpecificationAttributeModel();
             //locales
             await AddLocales(_languageService, model.Locales);
+            //Stores
+            await model.PrepareStoresMappingModel(null, _storeService, false, _workContext.CurrentCustomer.StaffStoreId);
+
             return View(model);
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create(SpecificationAttributeModel model, bool continueEditing)
         {
             if (ModelState.IsValid)
             {
                 var specificationAttribute = model.ToEntity();
                 specificationAttribute.SeName = SeoExtensions.GetSeName(string.IsNullOrEmpty(specificationAttribute.SeName) ? specificationAttribute.Name : specificationAttribute.SeName, _seoSettings);
+                if (_workContext.CurrentCustomer.IsStaff())
+                {
+                    model.LimitedToStores = true;
+                    model.SelectedStoreIds = new string[] { _workContext.CurrentCustomer.StaffStoreId };
+                }
                 await _specificationAttributeService.InsertSpecificationAttribute(specificationAttribute);
                 //activity log
                 await _customerActivityService.InsertActivity("AddNewSpecAttribute", specificationAttribute.Id, _localizationService.GetResource("ActivityLog.AddNewSpecAttribute"), specificationAttribute.Name);
@@ -95,6 +115,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //edit
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var specificationAttribute = await _specificationAttributeService.GetSpecificationAttributeById(id);
@@ -108,11 +129,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             {
                 locale.Name = specificationAttribute.GetLocalized(x => x.Name, languageId, false, false);
             });
+            //Stores
+            await model.PrepareStoresMappingModel(specificationAttribute, _storeService, false, _workContext.CurrentCustomer.StaffStoreId);
 
             return View(model);
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> Edit(SpecificationAttributeModel model, bool continueEditing)
         {
             var specificationAttribute = await _specificationAttributeService.GetSpecificationAttributeById(model.Id);
@@ -124,6 +148,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             {
                 specificationAttribute = model.ToEntity(specificationAttribute);
                 specificationAttribute.SeName = SeoExtensions.GetSeName(string.IsNullOrEmpty(specificationAttribute.SeName) ? specificationAttribute.Name : specificationAttribute.SeName, _seoSettings);
+                if (_workContext.CurrentCustomer.IsStaff())
+                {
+                    model.LimitedToStores = true;
+                    model.SelectedStoreIds = new string[] { _workContext.CurrentCustomer.StaffStoreId };
+                }
                 await _specificationAttributeService.UpdateSpecificationAttribute(specificationAttribute);
                 //activity log
                 await _customerActivityService.InsertActivity("EditSpecAttribute", specificationAttribute.Id, _localizationService.GetResource("ActivityLog.EditSpecAttribute"), specificationAttribute.Name);
@@ -141,11 +170,19 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
 
             //If we got this far, something failed, redisplay form
+            //Stores
+            await model.PrepareStoresMappingModel(specificationAttribute, _storeService, false, _workContext.CurrentCustomer.StaffStoreId);
+            //locales
+            await AddLocales(_languageService, model.Locales, (locale, languageId) =>
+            {
+                locale.Name = specificationAttribute.GetLocalized(x => x.Name, languageId, false, false);
+            });
             return View(model);
         }
 
         //delete
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         public async Task<IActionResult> Delete(string id)
         {
             var specificationAttribute = await _specificationAttributeService.GetSpecificationAttributeById(id);
@@ -172,6 +209,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         //list
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> OptionList(string specificationAttributeId, DataSourceRequest command)
         {
             var options = (await _specificationAttributeService.GetSpecificationAttributeById(specificationAttributeId)).SpecificationAttributeOptions.OrderBy(x => x.DisplayOrder);
@@ -191,6 +229,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //create
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OptionCreatePopup(string specificationAttributeId)
         {
             var model = new SpecificationAttributeOptionModel {
@@ -202,6 +241,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OptionCreatePopup(SpecificationAttributeOptionModel model)
         {
             var specificationAttribute = await _specificationAttributeService.GetSpecificationAttributeById(model.SpecificationAttributeId);
@@ -229,6 +269,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //edit
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OptionEditPopup(string id)
         {
             var sao = (await _specificationAttributeService.GetSpecificationAttributeByOptionId(id)).SpecificationAttributeOptions.Where(x => x.Id == id).FirstOrDefault();
@@ -248,6 +289,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OptionEditPopup(SpecificationAttributeOptionModel model)
         {
             var specificationAttribute = await _specificationAttributeService.GetSpecificationAttributeByOptionId(model.Id);
@@ -277,6 +319,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         //delete
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OptionDelete(string id)
         {
             if (ModelState.IsValid)

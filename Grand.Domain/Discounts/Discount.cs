@@ -116,11 +116,11 @@ namespace Grand.Domain.Discounts
         {
             get
             {
-                return (DiscountType)this.DiscountTypeId;
+                return (DiscountType)DiscountTypeId;
             }
             set
             {
-                this.DiscountTypeId = (int)value;
+                DiscountTypeId = (int)value;
             }
         }
 
@@ -131,11 +131,11 @@ namespace Grand.Domain.Discounts
         {
             get
             {
-                return (DiscountLimitationType)this.DiscountLimitationId;
+                return (DiscountLimitationType)DiscountLimitationId;
             }
             set
             {
-                this.DiscountLimitationId = (int)value;
+                DiscountLimitationId = (int)value;
             }
         }
 
@@ -144,7 +144,7 @@ namespace Grand.Domain.Discounts
         /// </summary>
         public virtual ICollection<DiscountRequirement> DiscountRequirements
         {
-            get { return _discountRequirements ?? (_discountRequirements = new List<DiscountRequirement>()); }
+            get { return _discountRequirements ??= new List<DiscountRequirement>(); }
             protected set { _discountRequirements = value; }
         }
 

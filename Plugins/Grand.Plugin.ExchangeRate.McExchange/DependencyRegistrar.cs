@@ -1,21 +1,20 @@
-using Autofac;
 using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
-using Grand.Core.Infrastructure.DependencyManagement;
+using Grand.Core.DependencyInjection;
+using Grand.Core.TypeFinders;
 using Grand.Plugin.ExchangeRate.McExchange;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Grand.Plugin.ExchangeRate.EcbExchange
 {
-    public class DependencyRegistrar : IDependencyRegistrar
+    public class DependencyInjection : IDependencyInjection
     {
-        public virtual void Register(ContainerBuilder builder, ITypeFinder typeFinder, GrandConfig config)
+        public virtual void Register(IServiceCollection serviceCollection, ITypeFinder typeFinder, GrandConfig config)
         {
-            builder.RegisterType<McExchangeRateProvider>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<McExchangeRateProvider>();
         }
 
-        public int Order
-        {
-            get { return 1; }
+        public int Order {
+            get { return 10; }
         }
     }
 }

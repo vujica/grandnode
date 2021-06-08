@@ -1,28 +1,27 @@
-﻿using Autofac;
-using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
-using Grand.Core.Infrastructure.DependencyManagement;
+﻿using Grand.Core.Configuration;
+using Grand.Core.DependencyInjection;
+using Grand.Core.TypeFinders;
 using Grand.Plugin.Widgets.Slider.Domain;
 using Grand.Plugin.Widgets.Slider.Services;
+using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Bson.Serialization;
 
 namespace Grand.Plugin.Widgets.Slider
 {
-    public class DependencyRegistrar : IDependencyRegistrar
+    public class DependencyInjection : IDependencyInjection
     {
-        public virtual void Register(ContainerBuilder builder, ITypeFinder typeFinder, GrandConfig config)
+        public virtual void Register(IServiceCollection serviceCollection, ITypeFinder typeFinder, GrandConfig config)
         {
-            builder.RegisterType<SliderPlugin>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<SliderPlugin>();
             BsonClassMap.RegisterClassMap<PictureSlider>(cm =>
             {
                 cm.AutoMap();
                 cm.UnmapMember(c => c.SliderType);
             });
-            builder.RegisterType<SliderService>().As<ISliderService>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<ISliderService, SliderService>();
         }
 
-        public int Order
-        {
+        public int Order {
             get { return 10; }
         }
     }

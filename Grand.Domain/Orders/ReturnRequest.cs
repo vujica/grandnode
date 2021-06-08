@@ -32,6 +32,16 @@ namespace Grand.Domain.Orders
         public string OrderId { get; set; }
 
         /// <summary>
+        /// Gets or sets the owner item identifier
+        /// </summary>
+        public string OwnerId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sales employee identifier 
+        /// </summary>
+        public string SeId { get; set; }
+
+        /// <summary>
         /// Gets or sets the return request items
         /// </summary>
         public IList<ReturnRequestItem> ReturnRequestItems { get; set; }
@@ -78,11 +88,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (ReturnRequestStatus)this.ReturnRequestStatusId;
+                return (ReturnRequestStatus)ReturnRequestStatusId;
             }
             set
             {
-                this.ReturnRequestStatusId = (int)value;
+                ReturnRequestStatusId = (int)value;
             }
         }
 

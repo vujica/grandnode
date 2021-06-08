@@ -1,11 +1,8 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Validators.Customer;
+﻿using Grand.Core.Models;
 
 namespace Grand.Web.Models.Orders
 {
-    [Validator(typeof(AddOrderNoteValidator))]
-    public class AddOrderNoteModel : BaseGrandModel
+    public class AddOrderNoteModel : BaseModel
     {
         public string OrderId { get; set; }
         public string Note { get; set; }

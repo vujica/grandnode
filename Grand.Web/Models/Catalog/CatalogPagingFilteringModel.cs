@@ -1,11 +1,12 @@
 ﻿using Grand.Core;
 using Grand.Core.Caching;
+using Grand.Core.Models;
 using Grand.Domain.Catalog;
-using Grand.Framework.Mvc.Models;
+using Grand.Domain.Directory;
 using Grand.Framework.UI.Paging;
 using Grand.Services.Catalog;
+using Grand.Services.Directory;
 using Grand.Services.Localization;
-using Grand.Web.Infrastructure.Cache;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
@@ -46,12 +47,15 @@ namespace Grand.Web.Models.Catalog
 
         public bool AllowProductSorting { get; set; }
         public IList<SelectListItem> AvailableSortOptions { get; set; }
+        public string AvailableSortOption { get; set; }
 
         public bool AllowProductViewModeChanging { get; set; }
         public IList<SelectListItem> AvailableViewModes { get; set; }
 
         public bool AllowCustomersToSelectPageSize { get; set; }
         public IList<SelectListItem> PageSizeOptions { get; set; }
+
+        public string PageSizeOption { get; set; }
 
         /// <summary>
         /// Order by
@@ -68,7 +72,7 @@ namespace Grand.Web.Models.Catalog
 
         #region Nested classes
 
-        public partial class PriceRangeFilterModel : BaseGrandModel
+        public partial class PriceRangeFilterModel : BaseModel
         {
             #region Const
 
@@ -136,45 +140,49 @@ namespace Grand.Web.Models.Catalog
             public virtual PriceRange GetSelectedPriceRange(IWebHelper webHelper, string priceRangesStr)
             {
                 var range = webHelper.QueryString<string>(QUERYSTRINGPARAM);
-                if (String.IsNullOrEmpty(range))
+                if (string.IsNullOrEmpty(range))
                     return null;
                 string[] fromTo = range.Trim().Split(new[] { '-' });
                 if (fromTo.Length == 2)
                 {
                     decimal? from = null;
-                    if (!String.IsNullOrEmpty(fromTo[0]) && !String.IsNullOrEmpty(fromTo[0].Trim()))
+                    if (!string.IsNullOrEmpty(fromTo[0]) && !string.IsNullOrEmpty(fromTo[0].Trim()))
                         from = decimal.Parse(fromTo[0].Trim(), new CultureInfo("en-US"));
                     decimal? to = null;
-                    if (!String.IsNullOrEmpty(fromTo[1]) && !String.IsNullOrEmpty(fromTo[1].Trim()))
+                    if (!string.IsNullOrEmpty(fromTo[1]) && !string.IsNullOrEmpty(fromTo[1].Trim()))
                         to = decimal.Parse(fromTo[1].Trim(), new CultureInfo("en-US"));
 
-                    var priceRangeList = GetPriceRangeList(priceRangesStr);
-                    foreach (var pr in priceRangeList)
-                    {
-                        if (pr.From == from && pr.To == to)
-                            return pr;
-                    }
+                    return new PriceRange() {
+                        From = from,
+                        To = to
+                    };
                 }
                 return null;
             }
 
-            public virtual void LoadPriceRangeFilters(string priceRangeStr, IWebHelper webHelper, IPriceFormatter priceFormatter)
+            public virtual async Task LoadPriceRangeFilters(string priceRangeStr, IWebHelper webHelper, IPriceFormatter priceFormatter, ICurrencyService currencyService, Currency currency)
             {
                 var priceRangeList = GetPriceRangeList(priceRangeStr);
                 if (priceRangeList.Any())
                 {
-                    this.Enabled = true;
+                    Enabled = true;
 
                     var selectedPriceRange = GetSelectedPriceRange(webHelper, priceRangeStr);
 
-                    this.Items = priceRangeList.ToList().Select(x =>
+                    foreach (var x in priceRangeList.ToList())
                     {
                         //from&to
                         var item = new PriceRangeFilterItem();
                         if (x.From.HasValue)
+                        {
+                            x.From = await currencyService.ConvertFromPrimaryStoreCurrency(x.From.Value, currency);
                             item.From = priceFormatter.FormatPrice(x.From.Value, true, false);
+                        }
                         if (x.To.HasValue)
+                        {
+                            x.To = await currencyService.ConvertFromPrimaryStoreCurrency(x.To.Value, currency);
                             item.To = priceFormatter.FormatPrice(x.To.Value, true, false);
+                        }
                         string fromQuery = string.Empty;
                         if (x.From.HasValue)
                             fromQuery = x.From.Value.ToString(new CultureInfo("en-US"));
@@ -194,8 +202,8 @@ namespace Grand.Web.Models.Catalog
                         item.FilterUrl = url;
 
 
-                        return item;
-                    }).ToList();
+                        Items.Add(item);
+                    }
 
                     if (selectedPriceRange != null)
                     {
@@ -221,7 +229,7 @@ namespace Grand.Web.Models.Catalog
             #endregion
         }
 
-        public partial class PriceRangeFilterItem : BaseGrandModel
+        public partial class PriceRangeFilterItem : BaseModel
         {
             public string From { get; set; }
             public string To { get; set; }
@@ -229,14 +237,8 @@ namespace Grand.Web.Models.Catalog
             public bool Selected { get; set; }
         }
 
-        public partial class SpecificationFilterModel : BaseGrandModel
+        public partial class SpecificationFilterModel : BaseModel
         {
-            #region Const
-
-            private const string QUERYSTRINGPARAM = "specs";
-
-            #endregion
-
             #region Ctor
 
             public SpecificationFilterModel()
@@ -304,36 +306,30 @@ namespace Grand.Web.Models.Catalog
             public virtual async Task PrepareSpecsFilters(IList<string> alreadyFilteredSpecOptionIds,
                 IList<string> filterableSpecificationAttributeOptionIds,
                 ISpecificationAttributeService specificationAttributeService,
-                IWebHelper webHelper, ICacheManager cacheManager, string langId)
+                IWebHelper webHelper, ICacheBase cacheManager, string langId)
             {
                 Enabled = false;
-                var optionIds = filterableSpecificationAttributeOptionIds != null
-                    ? string.Join(",", filterableSpecificationAttributeOptionIds.Union(alreadyFilteredSpecOptionIds)) : string.Empty;
-                var cacheKey = string.Format(ModelCacheEventConst.SPECS_FILTER_MODEL_KEY, optionIds, langId);
 
-                var allFilters = await cacheManager.GetAsync(cacheKey, async () =>
+                var allFilters = new List<SpecificationAttributeOptionFilter>();
+                foreach (var sao in filterableSpecificationAttributeOptionIds.Union(alreadyFilteredSpecOptionIds))
                 {
-                    var _allFilters = new List<SpecificationAttributeOptionFilter>();
-                    foreach (var sao in filterableSpecificationAttributeOptionIds.Union(alreadyFilteredSpecOptionIds))
+                    var sa = await specificationAttributeService.GetSpecificationAttributeByOptionId(sao);
+                    if (sa != null)
                     {
-                        var sa = await specificationAttributeService.GetSpecificationAttributeByOptionId(sao);
-                        if (sa != null)
-                        {
-                            _allFilters.Add(new SpecificationAttributeOptionFilter {
-                                SpecificationAttributeId = sa.Id,
-                                SpecificationAttributeName = sa.GetLocalized(x => x.Name, langId),
-                                SpecificationAttributeSeName = sa.SeName,
-                                SpecificationAttributeDisplayOrder = sa.DisplayOrder,
-                                SpecificationAttributeOptionId = sao,
-                                SpecificationAttributeOptionName = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).GetLocalized(x => x.Name, langId),
-                                SpecificationAttributeOptionSeName = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).SeName,
-                                SpecificationAttributeOptionDisplayOrder = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).DisplayOrder,
-                                SpecificationAttributeOptionColorRgb = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).ColorSquaresRgb,
-                            });
-                        }
+                        allFilters.Add(new SpecificationAttributeOptionFilter {
+                            SpecificationAttributeId = sa.Id,
+                            SpecificationAttributeName = sa.GetLocalized(x => x.Name, langId),
+                            SpecificationAttributeSeName = sa.SeName,
+                            SpecificationAttributeDisplayOrder = sa.DisplayOrder,
+                            SpecificationAttributeOptionId = sao,
+                            SpecificationAttributeOptionName = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).GetLocalized(x => x.Name, langId),
+                            SpecificationAttributeOptionSeName = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).SeName,
+                            SpecificationAttributeOptionDisplayOrder = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).DisplayOrder,
+                            SpecificationAttributeOptionColorRgb = sa.SpecificationAttributeOptions.FirstOrDefault(x => x.Id == sao).ColorSquaresRgb,
+                        });
                     }
-                    return _allFilters.ToList();
-                });
+                }
+
                 if (!allFilters.Any())
                     return;
 
@@ -401,7 +397,7 @@ namespace Grand.Web.Models.Catalog
             #endregion
         }
 
-        public partial class SpecificationFilterItem : BaseGrandModel
+        public partial class SpecificationFilterItem : BaseModel
         {
             public string SpecificationAttributeName { get; set; }
             public string SpecificationAttributeSeName { get; set; }

@@ -109,7 +109,7 @@ namespace Grand.Web.Areas.Admin.Services
             foreach (var item in returnRequest.ReturnRequestItems)
             {
                 var orderItem = order.OrderItems.Where(x => x.Id == item.OrderItemId).First();
-                unitPriceInclTaxInCustomerCurrency += _currencyService.ConvertCurrency(orderItem.UnitPriceInclTax, order.CurrencyRate) * item.Quantity;
+                unitPriceInclTaxInCustomerCurrency += orderItem.UnitPriceInclTax * item.Quantity;
             }
 
             model.Total = _priceFormatter.FormatPrice(unitPriceInclTaxInCustomerCurrency);
@@ -165,6 +165,7 @@ namespace Grand.Web.Areas.Admin.Services
                 customerId,
                 "",
                 _workContext.CurrentVendor?.Id,
+                "",
                 (model.SearchReturnRequestStatusId >= 0 ? (ReturnRequestStatus?)model.SearchReturnRequestStatusId : null),
                 pageIndex - 1,
                 pageSize,
@@ -237,14 +238,13 @@ namespace Grand.Web.Areas.Admin.Services
         public virtual async Task NotifyCustomer(ReturnRequest returnRequest)
         {
             var order = await _orderService.GetOrderById(returnRequest.OrderId);
-            int queuedEmailId = await _workflowMessageService.SendReturnRequestStatusChangedCustomerNotification(returnRequest, order, _localizationSettings.DefaultAdminLanguageId);
-
+            await _workflowMessageService.SendReturnRequestStatusChangedCustomerNotification(returnRequest, order, _localizationSettings.DefaultAdminLanguageId);
         }
         public virtual ReturnReqestListModel PrepareReturnReqestListModel()
         {
             var model = new ReturnReqestListModel {
                 //Return request status
-                ReturnRequestStatus = ReturnRequestStatus.Pending.ToSelectList().ToList()
+                ReturnRequestStatus = ReturnRequestStatus.Pending.ToSelectList(_localizationService, _workContext, false).ToList()
             };
             model.ReturnRequestStatus.Insert(0, new SelectListItem { Text = _localizationService.GetResource("Admin.Common.All"), Value = "-1" });
 
@@ -271,7 +271,7 @@ namespace Grand.Web.Areas.Admin.Services
             }
             return items;
         }
-        public virtual async Task<ReturnRequest> UpdateReturnRequestModel(ReturnRequest returnRequest, ReturnRequestModel model, string customAddressAttributes)
+        public virtual async Task<ReturnRequest> UpdateReturnRequestModel(ReturnRequest returnRequest, ReturnRequestModel model, List<CustomAttribute> customAddressAttributes)
         {
             returnRequest.CustomerComments = model.CustomerComments;
             returnRequest.StaffNotes = model.StaffNotes;
@@ -286,7 +286,7 @@ namespace Grand.Web.Areas.Admin.Services
             {
                 returnRequest.PickupAddress = model.PickupAddress.ToEntity();
                 if (returnRequest.PickupAddress != null)
-                    returnRequest.PickupAddress.CustomAttributes = customAddressAttributes;
+                    returnRequest.PickupAddress.Attributes = customAddressAttributes;
             }
             returnRequest.NotifyCustomer = model.NotifyCustomer;
             await _returnRequestService.UpdateReturnRequest(returnRequest);

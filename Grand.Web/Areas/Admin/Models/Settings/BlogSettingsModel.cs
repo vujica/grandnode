@@ -1,9 +1,9 @@
-﻿using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    public partial class BlogSettingsModel : BaseGrandModel
+    public partial class BlogSettingsModel : BaseModel
     {
         public string ActiveStoreScopeConfiguration { get; set; }
 
@@ -44,5 +44,9 @@ namespace Grand.Web.Areas.Admin.Models.Settings
         [GrandResourceDisplayName("Admin.Configuration.Settings.Blog.MaxTextSizeHomePage")]
         public int MaxTextSizeHomePage { get; set; }
         public bool MaxTextSizeHomePage_OverrideForStore { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Settings.Blog.ShowBlogPostsInSearchAutoComplete")]
+        public bool ShowBlogPostsInSearchAutoComplete { get; set; }
+        public bool ShowBlogPostsInSearchAutoComplete_OverrideForStore { get; set; }
     }
 }

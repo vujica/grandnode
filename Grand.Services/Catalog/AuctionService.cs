@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Catalog
 {
@@ -21,24 +22,22 @@ namespace Grand.Services.Catalog
     /// </summary>
     public partial class AuctionService : IAuctionService
     {
-        private const string PRODUCTS_BY_ID_KEY = "Grand.product.id-{0}";
-
         private readonly IRepository<Bid> _bidRepository;
         private readonly IProductService _productService;
         private readonly IRepository<Product> _productRepository;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IMediator _mediator;
 
         public AuctionService(IRepository<Bid> bidRepository,
             IProductService productService,
             IRepository<Product> productRepository,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             IMediator mediator)
         {
             _bidRepository = bidRepository;
             _productService = productService;
             _productRepository = productRepository;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _mediator = mediator;
         }
 
@@ -110,8 +109,9 @@ namespace Grand.Services.Catalog
 
             await _productRepository.Collection.UpdateOneAsync(filter, update);
 
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, product.Id));
+
             await _mediator.EntityUpdated(product);
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
         }
 
         public virtual async Task<IList<Product>> GetAuctionsToEnd()
@@ -133,8 +133,9 @@ namespace Grand.Services.Catalog
 
             await _productRepository.Collection.UpdateOneAsync(filter, update);
 
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, product.Id));
+
             await _mediator.EntityUpdated(product);
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
         }
 
 

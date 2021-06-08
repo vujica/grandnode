@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Grand.Core.Caching;
+﻿using Grand.Core.Caching;
 using Grand.Domain.Catalog;
+using Grand.Domain.Common;
 using Grand.Domain.Media;
 using Grand.Domain.Orders;
 using Grand.Services.Catalog;
 using Grand.Services.Customers;
-using Grand.Services.Directory;
 using Grand.Services.Discounts;
 using Grand.Services.Localization;
 using Grand.Services.Media;
@@ -23,6 +18,11 @@ using Grand.Web.Models.Media;
 using Grand.Web.Models.ShoppingCart;
 using MediatR;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Grand.Web.Features.Handlers.ShoppingCart
 {
@@ -36,9 +36,9 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
         private readonly ILocalizationService _localizationService;
         private readonly ITaxService _taxService;
         private readonly IPriceCalculationService _priceCalculationService;
-        private readonly ICurrencyService _currencyService;
+        private readonly IAclService _aclService;
         private readonly IPriceFormatter _priceFormatter;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IPictureService _pictureService;
 
         private readonly ShoppingCartSettings _shoppingCartSettings;
@@ -46,20 +46,20 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
         private readonly MediaSettings _mediaSettings;
 
         public GetWishlistHandler(
-            IPermissionService permissionService, 
-            IShoppingCartService shoppingCartService, 
-            IProductService productService, 
-            IProductAttributeParser productAttributeParser, 
-            IProductAttributeFormatter productAttributeFormatter, 
-            ILocalizationService localizationService, 
-            ITaxService taxService, 
-            IPriceCalculationService priceCalculationService, 
-            ICurrencyService currencyService, 
-            IPriceFormatter priceFormatter, 
-            ICacheManager cacheManager, 
-            IPictureService pictureService, 
-            ShoppingCartSettings shoppingCartSettings, 
-            CatalogSettings catalogSettings, 
+            IPermissionService permissionService,
+            IShoppingCartService shoppingCartService,
+            IProductService productService,
+            IProductAttributeParser productAttributeParser,
+            IProductAttributeFormatter productAttributeFormatter,
+            ILocalizationService localizationService,
+            ITaxService taxService,
+            IPriceCalculationService priceCalculationService,
+            IAclService aclService,
+            IPriceFormatter priceFormatter,
+            ICacheBase cacheManager,
+            IPictureService pictureService,
+            ShoppingCartSettings shoppingCartSettings,
+            CatalogSettings catalogSettings,
             MediaSettings mediaSettings)
         {
             _permissionService = permissionService;
@@ -70,9 +70,9 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
             _localizationService = localizationService;
             _taxService = taxService;
             _priceCalculationService = priceCalculationService;
-            _currencyService = currencyService;
+            _aclService = aclService;
             _priceFormatter = priceFormatter;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _pictureService = pictureService;
             _shoppingCartSettings = shoppingCartSettings;
             _catalogSettings = catalogSettings;
@@ -81,11 +81,12 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
 
         public async Task<WishlistModel> Handle(GetWishlist request, CancellationToken cancellationToken)
         {
-            var model = new WishlistModel();
-            model.EmailWishlistEnabled = _shoppingCartSettings.EmailWishlistEnabled;
-            model.IsEditable = request.IsEditable;
-            model.DisplayAddToCart = await _permissionService.Authorize(StandardPermissionProvider.EnableShoppingCart);
-            model.DisplayTaxShippingInfo = _catalogSettings.DisplayTaxShippingInfoWishlist;
+            var model = new WishlistModel {
+                EmailWishlistEnabled = _shoppingCartSettings.EmailWishlistEnabled,
+                IsEditable = request.IsEditable,
+                DisplayAddToCart = await _permissionService.Authorize(StandardPermissionProvider.EnableShoppingCart),
+                DisplayTaxShippingInfo = _catalogSettings.DisplayTaxShippingInfoWishlist
+            };
 
             if (!request.Cart.Any())
                 return model;
@@ -98,7 +99,7 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
             model.ShowSku = _catalogSettings.ShowSkuOnProductDetailsPage;
 
             //cart warnings
-            var cartWarnings = await _shoppingCartService.GetShoppingCartWarnings(request.Cart, "", false);
+            var cartWarnings = await _shoppingCartService.GetShoppingCartWarnings(request.Cart, new List<Domain.Common.CustomAttribute>(), false);
             foreach (var warning in cartWarnings)
                 model.Warnings.Add(warning);
 
@@ -109,14 +110,17 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
             foreach (var sci in request.Cart)
             {
                 var product = await _productService.GetProductById(sci.ProductId);
+                if (!_aclService.Authorize(product))
+                    continue;
+
                 var cartItemModel = new WishlistModel.ShoppingCartItemModel {
                     Id = sci.Id,
-                    Sku = product.FormatSku(sci.AttributesXml, _productAttributeParser),
+                    Sku = product.FormatSku(sci.Attributes, _productAttributeParser),
                     ProductId = product.Id,
                     ProductName = product.GetLocalized(x => x.Name, request.Language.Id),
                     ProductSeName = product.GetSeName(request.Language.Id),
                     Quantity = sci.Quantity,
-                    AttributeInfo = await _productAttributeFormatter.FormatAttributes(product, sci.AttributesXml),
+                    AttributeInfo = await _productAttributeFormatter.FormatAttributes(product, sci.Attributes),
                 };
 
                 //allow editing?
@@ -149,11 +153,9 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
                 }
                 else
                 {
-                    var productprice = await _taxService.GetProductPrice(product, (await _priceCalculationService.GetUnitPrice(sci)).unitprice);
+                    var productprice = await _taxService.GetProductPrice(product, (await _priceCalculationService.GetUnitPrice(sci, product)).unitprice);
                     decimal taxRate = productprice.taxRate;
-                    decimal shoppingCartUnitPriceWithDiscountBase = productprice.productprice;
-                    decimal shoppingCartUnitPriceWithDiscount = await _currencyService.ConvertFromPrimaryStoreCurrency(shoppingCartUnitPriceWithDiscountBase, request.Currency);
-                    cartItemModel.UnitPrice = _priceFormatter.FormatPrice(shoppingCartUnitPriceWithDiscount);
+                    cartItemModel.UnitPrice = _priceFormatter.FormatPrice(productprice.productprice);
                 }
                 //subtotal, discount
                 if (product.CallForPrice)
@@ -163,15 +165,12 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
                 else
                 {
                     //sub total
-                    var subtotal = await _priceCalculationService.GetSubTotal(sci, true);
+                    var subtotal = await _priceCalculationService.GetSubTotal(sci, product, true);
                     decimal shoppingCartItemDiscountBase = subtotal.discountAmount;
                     List<AppliedDiscount> scDiscounts = subtotal.appliedDiscounts;
                     var productprices = await _taxService.GetProductPrice(product, subtotal.subTotal);
                     decimal taxRate = productprices.taxRate;
-                    decimal shoppingCartItemSubTotalWithDiscountBase = productprices.productprice;
-
-                    decimal shoppingCartItemSubTotalWithDiscount = await _currencyService.ConvertFromPrimaryStoreCurrency(shoppingCartItemSubTotalWithDiscountBase, request.Currency);
-                    cartItemModel.SubTotal = _priceFormatter.FormatPrice(shoppingCartItemSubTotalWithDiscount);
+                    cartItemModel.SubTotal = _priceFormatter.FormatPrice(productprices.productprice);
 
                     //display an applied discount amount
                     if (shoppingCartItemDiscountBase > decimal.Zero)
@@ -179,8 +178,7 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
                         shoppingCartItemDiscountBase = (await _taxService.GetProductPrice(product, shoppingCartItemDiscountBase)).productprice;
                         if (shoppingCartItemDiscountBase > decimal.Zero)
                         {
-                            decimal shoppingCartItemDiscount = await _currencyService.ConvertFromPrimaryStoreCurrency(shoppingCartItemDiscountBase, request.Currency);
-                            cartItemModel.Discount = _priceFormatter.FormatPrice(shoppingCartItemDiscount);
+                            cartItemModel.Discount = _priceFormatter.FormatPrice(shoppingCartItemDiscountBase);
                         }
                     }
                 }
@@ -188,7 +186,7 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
                 //picture
                 if (_shoppingCartSettings.ShowProductImagesOnWishList)
                 {
-                    cartItemModel.Picture = await PrepareCartItemPicture(request, product, sci.AttributesXml);
+                    cartItemModel.Picture = await PrepareCartItemPicture(request, product, sci.Attributes);
                 }
 
                 //item warnings
@@ -198,30 +196,22 @@ namespace Grand.Web.Features.Handlers.ShoppingCart
 
                 model.Items.Add(cartItemModel);
             }
-            
+
             #endregion
-            
+
             return model;
         }
 
-        private async Task<PictureModel> PrepareCartItemPicture(GetWishlist request, 
-            Product product, string attributesXml)
+        private async Task<PictureModel> PrepareCartItemPicture(GetWishlist request,
+            Product product, IList<CustomAttribute> attributes)
         {
-            var pictureCacheKey = string.Format(ModelCacheEventConst.CART_PICTURE_MODEL_KEY, product.Id, _mediaSettings.CartThumbPictureSize, 
-                true, request.Language.Id, request.Store.Id);
-
-            var model = await _cacheManager.GetAsync(pictureCacheKey, async () =>
-            {
-                var sciPicture = await product.GetProductPicture(attributesXml, _productService, _pictureService, _productAttributeParser);
-                return new PictureModel {
-                    Id = sciPicture?.Id,
-                    ImageUrl = await _pictureService.GetPictureUrl(sciPicture, _mediaSettings.CartThumbPictureSize, true),
-                    Title = string.Format(_localizationService.GetResource("Media.Product.ImageLinkTitleFormat"), product.Name),
-                    AlternateText = string.Format(_localizationService.GetResource("Media.Product.ImageAlternateTextFormat"), product.Name),
-                };
-            });
-
-            return model;
+            var sciPicture = await product.GetProductPicture(attributes, _productService, _pictureService, _productAttributeParser);
+            return new PictureModel {
+                Id = sciPicture?.Id,
+                ImageUrl = await _pictureService.GetPictureUrl(sciPicture, _mediaSettings.CartThumbPictureSize, true),
+                Title = string.Format(_localizationService.GetResource("Media.Product.ImageLinkTitleFormat"), product.Name),
+                AlternateText = string.Format(_localizationService.GetResource("Media.Product.ImageAlternateTextFormat"), product.Name),
+            };
         }
 
     }

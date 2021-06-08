@@ -1,8 +1,8 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 
 namespace Grand.Web.Models.PushNotifications
 {
-    public class PublicInfoModel : BaseGrandModel
+    public class PublicInfoModel : BaseModel
     {
         public string SenderId { get; set; }
         public string PublicApiKey { get; set; }
@@ -10,5 +10,6 @@ namespace Grand.Web.Models.PushNotifications
         public string DatabaseUrl { get; set; }
         public string ProjectId { get; set; }
         public string StorageBucket { get; set; }
+        public string AppId { get; set; }
     }
 }

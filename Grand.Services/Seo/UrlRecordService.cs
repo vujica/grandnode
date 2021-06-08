@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Grand.Core.Configuration;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Seo
 {
@@ -18,39 +19,10 @@ namespace Grand.Services.Seo
     /// </summary>
     public partial class UrlRecordService : IUrlRecordService
     {
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : entity ID
-        /// {1} : entity name
-        /// {2} : language ID
-        /// </remarks>
-        private const string URLRECORD_ACTIVE_BY_ID_NAME_LANGUAGE_KEY = "Grand.urlrecord.active.id-name-language-{0}-{1}-{2}";
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        private const string URLRECORD_ALL_KEY = "Grand.urlrecord.all";
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : slug
-        /// </remarks>
-        private const string URLRECORD_BY_SLUG_KEY = "Grand.urlrecord.active.slug-{0}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string URLRECORD_PATTERN_KEY = "Grand.urlrecord.";
-
-        #endregion
-
         #region Fields
 
         private readonly IRepository<UrlRecord> _urlRecordRepository;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly GrandConfig _config;
 
         #endregion
@@ -63,11 +35,11 @@ namespace Grand.Services.Seo
         /// <param name="cacheManager">Cache manager</param>
         /// <param name="urlRecordRepository">URL record repository</param>
         /// <param name="localizationSettings">Localization settings</param>
-        public UrlRecordService(ICacheManager cacheManager,
+        public UrlRecordService(ICacheBase cacheManager,
             IRepository<UrlRecord> urlRecordRepository,
             GrandConfig config)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _urlRecordRepository = urlRecordRepository;
             _config = config;
         }
@@ -99,8 +71,8 @@ namespace Grand.Services.Seo
         protected virtual async Task<IList<UrlRecordForCaching>> GetAllUrlRecordsCached()
         {
             //cache
-            string key = string.Format(URLRECORD_ALL_KEY);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.URLRECORD_ALL_KEY);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var query = _urlRecordRepository.Table;
                 var urlRecords = await query.ToListAsync();
@@ -145,7 +117,7 @@ namespace Grand.Services.Seo
             await _urlRecordRepository.DeleteAsync(urlRecord);
 
             //cache
-            await _cacheManager.RemoveByPrefix(URLRECORD_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.URLRECORD_PATTERN_KEY);
         }
 
         /// <summary>
@@ -170,7 +142,7 @@ namespace Grand.Services.Seo
             await _urlRecordRepository.InsertAsync(urlRecord);
 
             //cache
-            await _cacheManager.RemoveByPrefix(URLRECORD_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.URLRECORD_PATTERN_KEY);
         }
 
         /// <summary>
@@ -185,7 +157,7 @@ namespace Grand.Services.Seo
             await _urlRecordRepository.UpdateAsync(urlRecord);
 
             //cache
-            await _cacheManager.RemoveByPrefix(URLRECORD_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.URLRECORD_PATTERN_KEY);
         }
 
         /// <summary>
@@ -234,8 +206,8 @@ namespace Grand.Services.Seo
             }
 
             //gradual loading
-            string key = string.Format(URLRECORD_BY_SLUG_KEY, slug);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.URLRECORD_BY_SLUG_KEY, slug);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var urlRecord = await GetBySlug(slug);
                 if (urlRecord == null)
@@ -250,16 +222,21 @@ namespace Grand.Services.Seo
         /// Gets all URL records
         /// </summary>
         /// <param name="slug">Slug</param>
+        /// <param name="active">Active</param>
         /// <param name="pageIndex">Page index</param>
         /// <param name="pageSize">Page size</param>
         /// <returns>URL records</returns>
-        public virtual async Task<IPagedList<UrlRecord>> GetAllUrlRecords(string slug = "", int pageIndex = 0, int pageSize = int.MaxValue)
+        public virtual async Task<IPagedList<UrlRecord>> GetAllUrlRecords(string slug = "", bool? active = null, int pageIndex = 0, int pageSize = int.MaxValue)
         {
 
             var query = _urlRecordRepository.Table;
 
-            if (!String.IsNullOrWhiteSpace(slug))
-                query = query.Where(ur => ur.Slug.ToLower().Contains(slug.ToLowerInvariant()));
+            if (!string.IsNullOrWhiteSpace(slug))
+                query = query.Where(ur => ur.Slug.Contains(slug.ToLowerInvariant()));
+
+            if (active.HasValue)
+                query = query.Where(ur => ur.IsActive == active.Value);
+
             query = query.OrderBy(ur => ur.Slug);
             return await PagedList<UrlRecord>.Create(query, pageIndex, pageSize);
         }
@@ -275,8 +252,8 @@ namespace Grand.Services.Seo
         {
             if (_config.LoadAllUrlRecordsOnStartup)
             {
-                string key = string.Format(URLRECORD_ACTIVE_BY_ID_NAME_LANGUAGE_KEY, entityId, entityName, languageId);
-                return await _cacheManager.GetAsync(key, async () =>
+                string key = string.Format(CacheKey.URLRECORD_ACTIVE_BY_ID_NAME_LANGUAGE_KEY, entityId, entityName, languageId);
+                return await _cacheBase.GetAsync(key, async () =>
                 {
                     //load all records (we know they are cached)
                     var source = await GetAllUrlRecordsCached();
@@ -296,8 +273,8 @@ namespace Grand.Services.Seo
             else
             {
                 //gradual loading
-                string key = string.Format(URLRECORD_ACTIVE_BY_ID_NAME_LANGUAGE_KEY, entityId, entityName, languageId);
-                return await _cacheManager.GetAsync(key, async () =>
+                string key = string.Format(CacheKey.URLRECORD_ACTIVE_BY_ID_NAME_LANGUAGE_KEY, entityId, entityName, languageId);
+                return await _cacheBase.GetAsync(key, async () =>
                 {
 
                     var source = _urlRecordRepository.Table;

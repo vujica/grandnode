@@ -1,12 +1,11 @@
 using Grand.Core;
-using Grand.Domain;
 using Grand.Core.Caching;
-using Grand.Domain.Data;
+using Grand.Core.Caching.Constants;
+using Grand.Domain;
 using Grand.Domain.Catalog;
 using Grand.Domain.Customers;
+using Grand.Domain.Data;
 using Grand.Domain.Orders;
-using Grand.Domain.Shipping;
-using Grand.Services.Commands.Models.Catalog;
 using Grand.Services.Customers;
 using Grand.Services.Events;
 using Grand.Services.Notifications.Catalog;
@@ -30,50 +29,12 @@ namespace Grand.Services.Catalog
     /// </summary>
     public partial class ProductService : IProductService
     {
-        #region Constants
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : product ID
-        /// </remarks>
-        private const string PRODUCTS_BY_ID_KEY = "Grand.product.id-{0}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string PRODUCTS_PATTERN_KEY = "Grand.product.";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string PRODUCTS_SHOWONHOMEPAGE = "Grand.product.showonhomepage";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        private const string PRODUCTS_CUSTOMER_ROLE_PATTERN = "Grand.product.cr";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        private const string PRODUCTS_CUSTOMER_TAG_PATTERN = "Grand.product.ct";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        private const string PRODUCTS_CUSTOMER_PERSONAL_PATTERN = "Grand.product.personal";
-
-        #endregion
 
         #region Fields
 
         private readonly IRepository<Product> _productRepository;
-        private readonly IRepository<ProductReview> _productReviewRepository;
         private readonly IRepository<ProductDeleted> _productDeletedRepository;
-        private readonly IProductAttributeService _productAttributeService;
-        private readonly IProductAttributeParser _productAttributeParser;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IWorkContext _workContext;
         private readonly IAclService _aclService;
         private readonly IStoreMappingService _storeMappingService;
@@ -87,12 +48,9 @@ namespace Grand.Services.Catalog
         /// <summary>
         /// Ctor
         /// </summary>
-        public ProductService(ICacheManager cacheManager,
+        public ProductService(ICacheBase cacheManager,
             IRepository<Product> productRepository,
-            IRepository<ProductReview> productReviewRepository,
             IRepository<ProductDeleted> productDeletedRepository,
-            IProductAttributeService productAttributeService,
-            IProductAttributeParser productAttributeParser,
             IWorkContext workContext,
             IMediator mediator,
             IAclService aclService,
@@ -100,12 +58,9 @@ namespace Grand.Services.Catalog
             CatalogSettings catalogSettings
             )
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _productRepository = productRepository;
-            _productReviewRepository = productReviewRepository;
             _productDeletedRepository = productDeletedRepository;
-            _productAttributeService = productAttributeService;
-            _productAttributeParser = productAttributeParser;
             _workContext = workContext;
             _mediator = mediator;
             _aclService = aclService;
@@ -137,7 +92,7 @@ namespace Grand.Services.Catalog
             await _productDeletedRepository.InsertAsync(productDeleted);
 
             //cache
-            await _cacheManager.RemoveByPrefix(PRODUCTS_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.PRODUCTS_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityDeleted(product);
@@ -179,8 +134,8 @@ namespace Grand.Services.Catalog
             if (fromDB)
                 return await _productRepository.GetByIdAsync(productId);
 
-            var key = string.Format(PRODUCTS_BY_ID_KEY, productId);
-            return await _cacheManager.GetAsync(key, () => _productRepository.GetByIdAsync(productId));
+            var key = string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productId);
+            return await _cacheBase.GetAsync(key, () => _productRepository.GetByIdAsync(productId));
         }
 
         /// <summary>
@@ -253,7 +208,7 @@ namespace Grand.Services.Catalog
             await _productRepository.InsertAsync(product);
 
             //clear cache
-            await _cacheManager.RemoveByPrefix(PRODUCTS_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.PRODUCTS_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityInserted(product);
@@ -393,44 +348,23 @@ namespace Grand.Services.Catalog
                 oldProduct.IsRecurring != product.IsRecurring
                 )
             {
-                
+
                 await _mediator.Publish(new UpdateProductOnCartEvent(product));
             }
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-            await _cacheManager.RemoveByPrefix(PRODUCTS_CUSTOMER_PERSONAL_PATTERN);
-            await _cacheManager.RemoveByPrefix(PRODUCTS_CUSTOMER_ROLE_PATTERN);
-            await _cacheManager.RemoveByPrefix(PRODUCTS_CUSTOMER_TAG_PATTERN);
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, product.Id));
+            await _cacheBase.RemoveByPrefix(CacheKey.PRODUCTS_CUSTOMER_PERSONAL_PATTERN);
+            await _cacheBase.RemoveByPrefix(CacheKey.PRODUCTS_CUSTOMER_ROLE_PATTERN);
+            await _cacheBase.RemoveByPrefix(CacheKey.PRODUCTS_CUSTOMER_TAG_PATTERN);
 
             //event notification
             await _mediator.EntityUpdated(product);
         }
 
-        public virtual async Task UpdateStockProduct(Product product, bool mediator = true)
+        public virtual async Task UpdateMostView(string productId)
         {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            //update
-            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-            var update = Builders<Product>.Update
-                    .Set(x => x.StockQuantity, product.StockQuantity)
-                    .Set(x => x.LowStock, ((product.MinStockQuantity > 0 && product.MinStockQuantity >= product.StockQuantity) || product.StockQuantity < 0))
-                    .CurrentDate("UpdatedOnUtc");
-            await _productRepository.Collection.UpdateOneAsync(filter, update);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            if (mediator)
-                await _mediator.Publish(new UpdateStockEvent(product));
-        }
-
-        public virtual async Task UpdateMostView(string productId, int qty)
-        {
-            var update = new UpdateDefinitionBuilder<Product>().Inc(x => x.Viewed, qty);
+            var update = new UpdateDefinitionBuilder<Product>().Inc(x => x.Viewed, 1);
             await _productRepository.Collection.UpdateManyAsync(x => x.Id == productId, update);
         }
 
@@ -440,15 +374,17 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(x => x.Id == productId, update);
         }
 
-        public virtual async Task UnpublishProduct(string productId)
+        public virtual async Task UnpublishProduct(Product product)
         {
-            var filter = Builders<Product>.Filter.Eq("Id", productId);
+            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
             var update = Builders<Product>.Update
                     .Set(x => x.Published, false)
                     .CurrentDate("UpdatedOnUtc");
             await _productRepository.Collection.UpdateOneAsync(filter, update);
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, product.Id));
 
+            //event notification
+            await _mediator.EntityUpdated(product);
         }
 
         /// <summary>
@@ -650,69 +586,13 @@ namespace Grand.Services.Catalog
         }
 
         /// <summary>
-        /// Get low stock products
-        /// </summary>
-        /// <param name="vendorId">Vendor identifier; "" to load all records</param>
-        /// <param name="storeId">Store identifier; "" to load all records</param>
-        /// <param name="products">Low stock products</param>
-        /// <param name="combinations">Low stock attribute combinations</param>
-        public virtual void GetLowStockProducts(string vendorId, string storeId,
-            out IList<Product> products,
-            out IList<ProductAttributeCombination> combinations)
-        {
-            //Track inventory for product
-            //simple products
-            var query_simple_products = from p in _productRepository.Table
-                                        where p.LowStock &&
-                                        ((p.ProductTypeId == (int)ProductType.SimpleProduct && p.ManageInventoryMethodId != (int)ManageInventoryMethod.DontManageStock)
-                                        ||
-                                        (p.ProductTypeId == (int)ProductType.BundledProduct && p.ManageInventoryMethodId == (int)ManageInventoryMethod.ManageStock))
-                                        select p;
-
-            if (!string.IsNullOrEmpty(vendorId))
-                query_simple_products = query_simple_products.Where(x => x.VendorId == vendorId);
-
-            if (!string.IsNullOrEmpty(storeId))
-                query_simple_products = query_simple_products.Where(x => x.Stores.Contains(storeId));
-
-            products = query_simple_products.ToList();
-
-            //Track inventory for product by product attributes
-            var query2_1 = from p in _productRepository.Table
-                           where
-                           p.ManageInventoryMethodId == (int)ManageInventoryMethod.ManageStockByAttributes &&
-                           (vendorId == "" || p.VendorId == vendorId) &&
-                           (storeId == "" || p.Stores.Contains(storeId))
-                           from c in p.ProductAttributeCombinations
-                           select new ProductAttributeCombination() {
-                               ProductId = p.Id,
-                               StockQuantity = c.StockQuantity,
-                               AttributesXml = c.AttributesXml,
-                               AllowOutOfStockOrders = c.AllowOutOfStockOrders,
-                               Id = c.Id,
-                               Gtin = c.Gtin,
-                               ManufacturerPartNumber = c.ManufacturerPartNumber,
-                               NotifyAdminForQuantityBelow = c.NotifyAdminForQuantityBelow,
-                               OverriddenPrice = c.OverriddenPrice,
-                               Sku = c.Sku
-                           };
-
-            var query2_2 = from c in query2_1
-                           where c.StockQuantity <= 0
-                           select c;
-
-            combinations = query2_2.ToList();
-        }
-
-
-        /// <summary>
         /// Gets a product by SKU
         /// </summary>
         /// <param name="sku">SKU</param>
         /// <returns>Product</returns>
         public virtual async Task<Product> GetProductBySku(string sku)
         {
-            if (String.IsNullOrEmpty(sku))
+            if (string.IsNullOrEmpty(sku))
                 return null;
 
             sku = sku.Trim();
@@ -734,674 +614,11 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, product.Id));
 
             //event notification
             await _mediator.EntityUpdated(product);
 
-        }
-
-        /// <summary>
-        /// Update Interval properties
-        /// </summary>
-        /// <param name="Interval">Interval</param>
-        /// <param name="IntervalUnit">Interval unit</param>
-        /// <param name="includeBothDates">Include both dates</param>
-        public virtual async Task UpdateIntervalProperties(string productId, int interval, IntervalUnit intervalUnit, bool includeBothDates)
-        {
-            var product = await GetProductById(productId);
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-            var update = Builders<Product>.Update
-                    .Set(x => x.Interval, interval)
-                    .Set(x => x.IntervalUnitId, (int)intervalUnit)
-                    .Set(x => x.IncBothDate, includeBothDates);
-
-            await _productRepository.Collection.UpdateOneAsync(filter, update);
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-        }
-
-        #endregion
-
-        #region Inventory management methods
-
-        /// <summary>
-        /// Adjust inventory
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantityToChange">Quantity to increase or descrease</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
-        public virtual async Task AdjustInventory(Product product, int quantityToChange, string attributesXml = "", string warehouseId = "")
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (quantityToChange == 0)
-                return;
-
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStock)
-            {
-                var prevStockQuantity = product.GetTotalStockQuantity(warehouseId: warehouseId);
-
-                //update stock quantity
-                if (product.UseMultipleWarehouses)
-                {
-                    //use multiple warehouses
-                    if (quantityToChange < 0)
-                        await ReserveInventory(product, quantityToChange, warehouseId);
-                    else
-                        await UnblockReservedInventory(product, quantityToChange, warehouseId);
-
-                    product.StockQuantity = product.ProductWarehouseInventory.Sum(x => x.StockQuantity);
-                    await UpdateStockProduct(product);
-                }
-                else
-                {
-                    //do not use multiple warehouses
-                    //simple inventory management
-                    product.StockQuantity += quantityToChange;
-                    await UpdateStockProduct(product);
-                }
-
-                //check if minimum quantity is reached
-                if (quantityToChange < 0 && product.MinStockQuantity >= product.GetTotalStockQuantity(warehouseId: ""))
-                {
-                    switch (product.LowStockActivity)
-                    {
-                        case LowStockActivity.DisableBuyButton:
-                            product.DisableBuyButton = true;
-                            product.DisableWishlistButton = true;
-
-                            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-                            var update = Builders<Product>.Update
-                                    .Set(x => x.DisableBuyButton, product.DisableBuyButton)
-                                    .Set(x => x.DisableWishlistButton, product.DisableWishlistButton)
-                                    .Set(x => x.LowStock, true)
-                                    .CurrentDate("UpdatedOnUtc");
-                            await _productRepository.Collection.UpdateOneAsync(filter, update);
-                            //cache
-                            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-                            //event notification
-                            await _mediator.EntityUpdated(product);
-
-                            break;
-                        case LowStockActivity.Unpublish:
-                            product.Published = false;
-                            var filter2 = Builders<Product>.Filter.Eq("Id", product.Id);
-                            var update2 = Builders<Product>.Update
-                                    .Set(x => x.Published, product.Published)
-                                    .CurrentDate("UpdatedOnUtc");
-                            await _productRepository.Collection.UpdateOneAsync(filter2, update2);
-
-                            //cache
-                            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-                            if (product.ShowOnHomePage)
-                                await _cacheManager.RemoveByPrefix(PRODUCTS_SHOWONHOMEPAGE);
-
-                            //event notification
-                            await _mediator.EntityUpdated(product);
-
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                //qty is increased. product is back in stock (minimum stock quantity is reached again)?
-                if (_catalogSettings.PublishBackProductWhenCancellingOrders)
-                {
-                    if (quantityToChange > 0 && prevStockQuantity <= product.MinStockQuantity && product.MinStockQuantity < product.GetTotalStockQuantity(warehouseId: ""))
-                    {
-                        switch (product.LowStockActivity)
-                        {
-                            case LowStockActivity.DisableBuyButton:
-                                var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-                                var update = Builders<Product>.Update
-                                        .Set(x => x.DisableBuyButton, product.DisableBuyButton)
-                                        .Set(x => x.DisableWishlistButton, product.DisableWishlistButton)
-                                        .Set(x => x.LowStock, true)
-                                        .CurrentDate("UpdatedOnUtc");
-                                await _productRepository.Collection.UpdateOneAsync(filter, update);
-                                //cache
-                                await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-                                break;
-                            case LowStockActivity.Unpublish:
-                                product.Published = false;
-                                var filter2 = Builders<Product>.Filter.Eq("Id", product.Id);
-                                var update2 = Builders<Product>.Update
-                                        .Set(x => x.Published, product.Published)
-                                        .CurrentDate("UpdatedOnUtc");
-                                await _productRepository.Collection.UpdateOneAsync(filter2, update2);
-
-                                //cache
-                                await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-                                if (product.ShowOnHomePage)
-                                    await _cacheManager.RemoveByPrefix(PRODUCTS_SHOWONHOMEPAGE);
-
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                }
-
-                //send email notification
-                if (quantityToChange < 0 && product.GetTotalStockQuantity(warehouseId: warehouseId) < product.NotifyAdminForQuantityBelow)
-                {
-                    await _mediator.Send(new SendQuantityBelowStoreOwnerNotificationCommand() {
-                        Product = product
-                    });
-                }
-            }
-
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByAttributes)
-            {
-                var combination = _productAttributeParser.FindProductAttributeCombination(product, attributesXml);
-                if (combination != null)
-                {
-                    combination.ProductId = product.Id;
-                    if (!product.UseMultipleWarehouses)
-                    {
-                        combination.StockQuantity += quantityToChange;
-                        await _productAttributeService.UpdateProductAttributeCombination(combination);
-                    }
-                    else
-                    {
-                        if (quantityToChange < 0)
-                            await ReserveInventoryCombination(product, combination, quantityToChange, warehouseId);
-                        else
-                            await UnblockReservedInventoryCombination(product, combination, quantityToChange, warehouseId);
-                    }
-
-                    product.StockQuantity += quantityToChange;
-                    await UpdateStockProduct(product);
-
-                    //send email notification
-                    if (quantityToChange < 0 && combination.StockQuantity < combination.NotifyAdminForQuantityBelow)
-                    {
-                        await _mediator.Send(new SendQuantityBelowStoreOwnerNotificationCommand() {
-                            Product = product,
-                            ProductAttributeCombination = combination
-                        });
-                    }
-                }
-            }
-
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByBundleProducts)
-            {
-                foreach (var item in product.BundleProducts)
-                {
-                    var p1 = await GetProductById(item.ProductId);
-                    if (p1 != null && (p1.ManageInventoryMethod == ManageInventoryMethod.ManageStock || p1.ManageInventoryMethod == ManageInventoryMethod.ManageStockByAttributes))
-                    {
-                        await AdjustInventory(p1, quantityToChange * item.Quantity, attributesXml, warehouseId);
-                    }
-                }
-            }
-
-            //bundled products
-            var attributeValues = _productAttributeParser.ParseProductAttributeValues(product, attributesXml);
-            foreach (var attributeValue in attributeValues)
-            {
-                if (attributeValue.AttributeValueType == AttributeValueType.AssociatedToProduct)
-                {
-                    //associated product (bundle)
-                    var associatedProduct = await GetProductById(attributeValue.AssociatedProductId);
-                    if (associatedProduct != null)
-                    {
-                        await AdjustInventory(associatedProduct, quantityToChange * attributeValue.Quantity, warehouseId);
-                    }
-                }
-            }
-
-        }
-
-        /// <summary>
-        /// Reserve the given quantity in the warehouses.
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity, must be negative</param>
-        public virtual async Task ReserveInventory(Product product, int quantity, string warehouseId)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (quantity >= 0)
-                throw new ArgumentException("Value must be negative.", "quantity");
-
-            var qty = -quantity;
-
-            var productInventory = product.ProductWarehouseInventory
-                .OrderByDescending(pwi => pwi.StockQuantity - pwi.ReservedQuantity)
-                .ToList();
-
-            if (productInventory.Count <= 0)
-                return;
-
-            Action pass = () =>
-            {
-                foreach (var item in productInventory.Where(x => x.WarehouseId == warehouseId || string.IsNullOrEmpty(warehouseId)))
-                {
-                    var selectQty = Math.Min(item.StockQuantity - item.ReservedQuantity, qty);
-                    if (qty - selectQty < 0)
-                        break;
-
-                    item.ReservedQuantity += selectQty;
-                    qty -= selectQty;
-                    if (qty <= 0)
-                        break;
-                }
-            };
-
-            // 1st pass: Applying reserved
-            pass();
-
-            if (qty > 0)
-            {
-                // 2rd pass: Booking negative stock!
-                var pwi = productInventory[0];
-                pwi.ReservedQuantity += qty;
-            }
-
-            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-            var update = Builders<Product>.Update
-                    .Set(x => x.ProductWarehouseInventory, productInventory)
-                    .CurrentDate("UpdatedOnUtc");
-            await _productRepository.Collection.UpdateOneAsync(filter, update);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-        }
-
-
-        /// <summary>
-        /// Reserve the given quantity in the warehouses.
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="combination">Combination</param>
-        /// <param name="quantity">Quantity, must be negative</param>
-        public virtual async Task ReserveInventoryCombination(Product product, ProductAttributeCombination combination, int quantity, string warehouseId)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (combination == null)
-                throw new ArgumentNullException("combination");
-
-            if (quantity >= 0)
-                throw new ArgumentException("Value must be negative.", "quantity");
-
-            var qty = -quantity;
-
-            var productInventory = combination.WarehouseInventory
-                .OrderByDescending(pwi => pwi.StockQuantity - pwi.ReservedQuantity)
-                .ToList();
-
-            if (productInventory.Count <= 0)
-                return;
-
-            Action pass = () =>
-            {
-                foreach (var item in productInventory.Where(x => x.WarehouseId == warehouseId || string.IsNullOrEmpty(warehouseId)))
-                {
-                    var selectQty = Math.Min(item.StockQuantity - item.ReservedQuantity, qty);
-                    if (qty - selectQty < 0)
-                        break;
-
-                    item.ReservedQuantity += selectQty;
-                    qty -= selectQty;
-                    if (qty <= 0)
-                        break;
-                }
-            };
-
-            // 1st pass: Applying reserved
-            pass();
-
-            if (qty > 0)
-            {
-                // 2rd pass: Booking negative stock!
-                var pwi = productInventory[0];
-                pwi.ReservedQuantity += qty;
-            }
-            combination.StockQuantity = combination.WarehouseInventory.Sum(x => x.StockQuantity - x.ReservedQuantity);
-            var builder = Builders<Product>.Filter;
-            var filter = builder.Eq(x => x.Id, combination.ProductId);
-            filter = filter & builder.ElemMatch(x => x.ProductAttributeCombinations, y => y.Id == combination.Id);
-            var update = Builders<Product>.Update
-                .Set("ProductAttributeCombinations.$.StockQuantity", combination.StockQuantity)
-                .Set("ProductAttributeCombinations.$.WarehouseInventory", combination.WarehouseInventory)
-                .CurrentDate("UpdatedOnUtc");
-
-            await _productRepository.Collection.UpdateManyAsync(filter, update);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-        }
-
-        /// <summary>
-        /// Unblocks the given quantity reserved items in the warehouses
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity, must be positive</param>
-        public virtual async Task UnblockReservedInventory(Product product, int quantity, string warehouseId)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (quantity < 0)
-                throw new ArgumentException("Value must be positive.", "quantity");
-
-            var productInventory = product.ProductWarehouseInventory
-                .OrderByDescending(pwi => pwi.ReservedQuantity)
-                .ThenByDescending(pwi => pwi.StockQuantity)
-                .ToList();
-
-            if (productInventory.Count <= 0)
-                return;
-
-            var qty = quantity;
-
-            foreach (var item in productInventory.Where(x => x.WarehouseId == warehouseId || string.IsNullOrEmpty(warehouseId)))
-            {
-                var selectQty = Math.Min(item.ReservedQuantity, qty);
-                if (qty - selectQty < 0)
-                    break;
-
-                item.ReservedQuantity -= selectQty;
-                qty -= selectQty;
-                if (qty <= 0)
-                    break;
-            }
-
-            if (qty > 0)
-            {
-                var pwi = productInventory[0];
-                pwi.StockQuantity += qty;
-
-            }
-
-            var filter = Builders<Product>.Filter.Eq("Id", product.Id);
-            var update = Builders<Product>.Update
-                    .Set(x => x.ProductWarehouseInventory, productInventory)
-                    .CurrentDate("UpdatedOnUtc");
-            await _productRepository.Collection.UpdateOneAsync(filter, update);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-        }
-
-
-        /// <summary>
-        /// Unblocks the given quantity reserved items in the warehouses
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity, must be positive</param>
-        public virtual async Task UnblockReservedInventoryCombination(Product product, ProductAttributeCombination combination, int quantity, string warehouseId)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (quantity < 0)
-                throw new ArgumentException("Value must be positive.", "quantity");
-
-            var productInventory = combination.WarehouseInventory
-                .OrderByDescending(pwi => pwi.StockQuantity - pwi.ReservedQuantity)
-                .ToList();
-
-            if (productInventory.Count <= 0)
-                return;
-
-            var qty = quantity;
-
-            foreach (var item in productInventory.Where(x => x.WarehouseId == warehouseId || string.IsNullOrEmpty(warehouseId)))
-            {
-                var selectQty = Math.Min(item.ReservedQuantity, qty);
-                if (qty - selectQty < 0)
-                    break;
-
-                item.ReservedQuantity -= selectQty;
-                qty -= selectQty;
-                if (qty <= 0)
-                    break;
-            }
-
-            if (qty > 0)
-            {
-                var pwi = productInventory[0];
-                pwi.StockQuantity += qty;
-            }
-
-            combination.StockQuantity = combination.WarehouseInventory.Sum(x => x.StockQuantity);
-            var builder = Builders<Product>.Filter;
-            var filter = builder.Eq(x => x.Id, combination.ProductId);
-            filter = filter & builder.ElemMatch(x => x.ProductAttributeCombinations, y => y.Id == combination.Id);
-            var update = Builders<Product>.Update
-                .Set("ProductAttributeCombinations.$.StockQuantity", combination.StockQuantity)
-                .Set("ProductAttributeCombinations.$.WarehouseInventory", combination.WarehouseInventory)
-                .CurrentDate("UpdatedOnUtc");
-
-            await _productRepository.Collection.UpdateManyAsync(filter, update);
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-        }
-
-        /// <summary>
-        /// Book the reserved quantity
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="attributeXML">AttributeXML</param>
-        /// <param name="warehouseId">Warehouse identifier</param>
-        /// <param name="quantity">Quantity, must be negative</param>
-        public virtual async Task BookReservedInventory(Product product, string AttributeXML, string warehouseId, int quantity)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (quantity >= 0)
-                throw new ArgumentException("Value must be negative.", "quantity");
-
-            //only products with "use multiple warehouses" are handled this way
-            if (product.ManageInventoryMethod == ManageInventoryMethod.DontManageStock)
-                return;
-            if (!product.UseMultipleWarehouses && product.ManageInventoryMethod != ManageInventoryMethod.ManageStockByBundleProducts)
-                return;
-
-            //standard manage stock 
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStock)
-            {
-                var pwi = product.ProductWarehouseInventory.FirstOrDefault(pi => pi.WarehouseId == warehouseId);
-                if (pwi == null)
-                    return;
-
-                pwi.ReservedQuantity = Math.Max(pwi.ReservedQuantity + quantity, 0);
-                pwi.StockQuantity += quantity;
-
-                var builder = Builders<Product>.Filter;
-                var filter = builder.Eq(x => x.Id, product.Id);
-                filter = filter & builder.Where(x => x.ProductWarehouseInventory.Any(y => y.WarehouseId == pwi.WarehouseId));
-
-                var update = Builders<Product>.Update
-                        .Set(x => x.ProductWarehouseInventory.ElementAt(-1), pwi)
-                        .CurrentDate("UpdatedOnUtc");
-                await _productRepository.Collection.UpdateOneAsync(filter, update);
-
-                product.StockQuantity = product.ProductWarehouseInventory.Sum(x => x.StockQuantity);
-                await UpdateStockProduct(product);
-
-            }
-            //manage stock by attributes
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByAttributes)
-            {
-                var combination = product.ProductAttributeCombinations.FirstOrDefault(x => x.AttributesXml == AttributeXML);
-                if (combination == null)
-                    return;
-                combination.ProductId = product.Id;
-
-                var pwi = combination.WarehouseInventory.FirstOrDefault(pi => pi.WarehouseId == warehouseId);
-                if (pwi == null)
-                    return;
-
-                pwi.ReservedQuantity = Math.Max(pwi.ReservedQuantity + quantity, 0);
-                pwi.StockQuantity += quantity;
-
-                combination.StockQuantity = combination.WarehouseInventory.Sum(x => x.StockQuantity);
-
-                var builder = Builders<Product>.Filter;
-                var filter = builder.Eq(x => x.Id, combination.ProductId);
-                filter = filter & builder.ElemMatch(x => x.ProductAttributeCombinations, y => y.Id == combination.Id);
-                var update = Builders<Product>.Update
-                    .Set("ProductAttributeCombinations.$.StockQuantity", combination.StockQuantity)
-                    .Set("ProductAttributeCombinations.$.WarehouseInventory", combination.WarehouseInventory)
-                    .CurrentDate("UpdatedOnUtc");
-
-                await _productRepository.Collection.UpdateManyAsync(filter, update);
-
-                product.StockQuantity = product.ProductAttributeCombinations.Sum(x => x.StockQuantity);
-                await UpdateStockProduct(product);
-
-            }
-            //manage stock by bundle products
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByBundleProducts)
-            {
-                foreach (var item in product.BundleProducts)
-                {
-                    var p1 = await GetProductById(item.ProductId);
-                    if (p1 != null && p1.ManageInventoryMethod == ManageInventoryMethod.ManageStock)
-                    {
-                        await BookReservedInventory(p1, string.Empty, warehouseId, quantity * item.Quantity);
-                    }
-                }
-            }
-
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-
-        }
-
-        /// <summary>
-        /// Reverse booked inventory (if acceptable)
-        /// </summary>
-        /// <param name="product">product</param>
-        /// <param name="shipmentItem">Shipment item</param>
-        /// <returns>Quantity reversed</returns>
-        public virtual async Task<int> ReverseBookedInventory(Product product, Shipment shipment, ShipmentItem shipmentItem)
-        {
-            if (product == null)
-                throw new ArgumentNullException("product");
-
-            if (shipmentItem == null)
-                throw new ArgumentNullException("shipmentItem");
-
-            //only products with "use multiple warehouses" are handled this way
-            if (product.ManageInventoryMethod == ManageInventoryMethod.DontManageStock)
-                return 0;
-            if (!product.UseMultipleWarehouses && product.ManageInventoryMethod != ManageInventoryMethod.ManageStockByBundleProducts)
-                return 0;
-
-            var qty = shipmentItem.Quantity;
-
-            //standard manage stock
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStock)
-            {
-                var pwi = product.ProductWarehouseInventory.FirstOrDefault(x => x.WarehouseId == shipmentItem.WarehouseId);
-                if (pwi == null)
-                    return 0;
-
-                //not shipped yet? hence "BookReservedInventory" method was not invoked
-                if (!shipment.ShippedDateUtc.HasValue)
-                    return 0;
-
-                pwi.StockQuantity += qty;
-                pwi.ReservedQuantity += qty;
-
-                var builder = Builders<Product>.Filter;
-                var filter = builder.Eq(x => x.Id, product.Id);
-                filter = filter & builder.Where(x => x.ProductWarehouseInventory.Any(y => y.WarehouseId == pwi.WarehouseId));
-
-                var update = Builders<Product>.Update
-                        .Set(x => x.ProductWarehouseInventory.ElementAt(-1), pwi)
-                        .CurrentDate("UpdatedOnUtc");
-                await _productRepository.Collection.UpdateOneAsync(filter, update);
-            }
-
-            //manage stock by attributes
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByAttributes)
-            {
-
-                var combination = product.ProductAttributeCombinations.FirstOrDefault(x => x.AttributesXml == shipmentItem.AttributeXML);
-                if (combination == null)
-                    return 0;
-
-                combination.ProductId = product.Id;
-
-                var pwi = combination.WarehouseInventory.FirstOrDefault(x => x.WarehouseId == shipmentItem.WarehouseId);
-                if (pwi == null)
-                    return 0;
-
-                //not shipped yet? hence "BookReservedInventory" method was not invoked
-                if (!shipment.ShippedDateUtc.HasValue)
-                    return 0;
-
-                pwi.StockQuantity += qty;
-                pwi.ReservedQuantity += qty;
-
-                combination.StockQuantity = combination.WarehouseInventory.Sum(x => x.StockQuantity);
-
-                var builder = Builders<Product>.Filter;
-                var filter = builder.Eq(x => x.Id, combination.ProductId);
-                filter = filter & builder.ElemMatch(x => x.ProductAttributeCombinations, y => y.Id == combination.Id);
-                var update = Builders<Product>.Update
-                    .Set("ProductAttributeCombinations.$.StockQuantity", combination.StockQuantity)
-                    .Set("ProductAttributeCombinations.$.WarehouseInventory", combination.WarehouseInventory)
-                    .CurrentDate("UpdatedOnUtc");
-
-                await _productRepository.Collection.UpdateManyAsync(filter, update);
-            }
-            //manage stock by bundle products
-            if (product.ManageInventoryMethod == ManageInventoryMethod.ManageStockByBundleProducts)
-            {
-                foreach (var item in product.BundleProducts)
-                {
-                    var p1 = await GetProductById(item.ProductId);
-                    if (p1 != null && p1.ManageInventoryMethod == ManageInventoryMethod.ManageStock)
-                    {
-                        shipmentItem.Quantity = shipmentItem.Quantity * item.Quantity;
-                        await ReverseBookedInventory(p1, shipment, shipmentItem);
-                    }
-                }
-            }
-            //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, product.Id));
-
-            //event notification
-            await _mediator.EntityUpdated(product);
-
-            return qty;
         }
 
         #endregion
@@ -1422,7 +639,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", relatedProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
 
             //event notification
             await _mediator.EntityDeleted(relatedProduct);
@@ -1439,7 +656,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", relatedProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
 
             //event notification
             await _mediator.EntityInserted(relatedProduct);
@@ -1463,7 +680,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, relatedProduct.ProductId1));
 
             //event notification
             await _mediator.EntityUpdated(relatedProduct);
@@ -1487,7 +704,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", similarProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
 
             //event notification
             await _mediator.EntityDeleted(similarProduct);
@@ -1504,7 +721,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", similarProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
 
             //event notification
             await _mediator.EntityInserted(similarProduct);
@@ -1528,7 +745,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, similarProduct.ProductId1));
 
             //event notification
             await _mediator.EntityUpdated(similarProduct);
@@ -1552,7 +769,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", bundleProduct.ProductBundleId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
 
             //event notification
             await _mediator.EntityDeleted(bundleProduct);
@@ -1572,7 +789,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", bundleProduct.ProductBundleId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
 
             //event notification
             await _mediator.EntityInserted(bundleProduct);
@@ -1598,7 +815,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, bundleProduct.ProductBundleId));
 
             //event notification
             await _mediator.EntityUpdated(bundleProduct);
@@ -1623,7 +840,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", crossSellProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, crossSellProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, crossSellProduct.ProductId1));
 
             //event notification
             await _mediator.EntityDeleted(crossSellProduct);
@@ -1644,7 +861,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", crossSellProduct.ProductId1), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, crossSellProduct.ProductId1));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, crossSellProduct.ProductId1));
 
             //event notification
             await _mediator.EntityInserted(crossSellProduct);
@@ -1722,7 +939,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", tierPrice.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
 
             //event notification
             await _mediator.EntityDeleted(tierPrice);
@@ -1742,7 +959,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", tierPrice.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
 
             //event notification
             await _mediator.EntityInserted(tierPrice);
@@ -1767,16 +984,88 @@ namespace Grand.Services.Catalog
                 .Set(x => x.TierPrices.ElementAt(-1).Quantity, tierPrice.Quantity)
                 .Set(x => x.TierPrices.ElementAt(-1).StoreId, tierPrice.StoreId)
                 .Set(x => x.TierPrices.ElementAt(-1).CustomerRoleId, tierPrice.CustomerRoleId)
+                .Set(x => x.TierPrices.ElementAt(-1).CurrencyCode, tierPrice.CurrencyCode)
                 .Set(x => x.TierPrices.ElementAt(-1).StartDateTimeUtc, tierPrice.StartDateTimeUtc)
                 .Set(x => x.TierPrices.ElementAt(-1).EndDateTimeUtc, tierPrice.EndDateTimeUtc);
 
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, tierPrice.ProductId));
 
             //event notification
             await _mediator.EntityUpdated(tierPrice);
+        }
+
+        #endregion
+
+        #region Product prices
+
+        /// <summary>
+        /// Deletes a product price
+        /// </summary>
+        /// <param name="productPrice">Product price</param>
+        public virtual async Task DeleteProductPrice(ProductPrice productPrice)
+        {
+            if (productPrice == null)
+                throw new ArgumentNullException("productPrice");
+
+            var updatebuilder = Builders<Product>.Update;
+            var update = updatebuilder.Pull(p => p.ProductPrices, productPrice);
+            await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productPrice.ProductId), update);
+
+            //cache
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPrice.ProductId));
+
+            //event notification
+            await _mediator.EntityDeleted(productPrice);
+        }
+
+        /// <summary>
+        /// Inserts a product price
+        /// </summary>
+        /// <param name="productPrice">Product price</param>
+        public virtual async Task InsertProductPrice(ProductPrice productPrice)
+        {
+            if (productPrice == null)
+                throw new ArgumentNullException("productPrice");
+
+            var updatebuilder = Builders<Product>.Update;
+            var update = updatebuilder.AddToSet(p => p.ProductPrices, productPrice);
+            await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productPrice.ProductId), update);
+
+            //cache
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPrice.ProductId));
+
+            //event notification
+            await _mediator.EntityInserted(productPrice);
+        }
+
+        /// <summary>
+        /// Updates the product price
+        /// </summary>
+        /// <param name="tierPrice">Tier price</param>
+        public virtual async Task UpdateProductPrice(ProductPrice productPrice)
+        {
+            if (productPrice == null)
+                throw new ArgumentNullException("productPrice");
+
+
+            var builder = Builders<Product>.Filter;
+            var filter = builder.Eq(x => x.Id, productPrice.ProductId);
+            filter = filter & builder.Where(x => x.ProductPrices.Any(y => y.Id == productPrice.Id));
+
+            var update = Builders<Product>.Update
+                .Set(x => x.ProductPrices.ElementAt(-1).Price, productPrice.Price)
+                .Set(x => x.ProductPrices.ElementAt(-1).CurrencyCode, productPrice.CurrencyCode);
+
+            await _productRepository.Collection.UpdateManyAsync(filter, update);
+
+            //cache
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPrice.ProductId));
+
+            //event notification
+            await _mediator.EntityUpdated(productPrice);
         }
 
         #endregion
@@ -1797,7 +1086,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productPicture.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productPicture.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPicture.ProductId));
 
             //event notification
             await _mediator.EntityDeleted(productPicture);
@@ -1817,7 +1106,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productPicture.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productPicture.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPicture.ProductId));
 
             //event notification
             await _mediator.EntityInserted(productPicture);
@@ -1845,15 +1134,13 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productPicture.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productPicture.ProductId));
 
             //event notification
             await _mediator.EntityUpdated(productPicture);
         }
 
         #endregion
-
-        
 
         #region Product warehouse inventory
 
@@ -1871,7 +1158,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", pwi.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, pwi.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, pwi.ProductId));
 
         }
 
@@ -1885,7 +1172,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", pwi.ProductId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, pwi.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, pwi.ProductId));
 
             //event notification
             await _mediator.EntityInserted(pwi);
@@ -1906,7 +1193,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateManyAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, pwi.ProductId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, pwi.ProductId));
             //event notification
             await _mediator.EntityUpdated(pwi);
         }
@@ -1924,7 +1211,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productId));
         }
 
         public virtual async Task InsertDiscount(string discountId, string productId)
@@ -1937,7 +1224,7 @@ namespace Grand.Services.Catalog
             await _productRepository.Collection.UpdateOneAsync(new BsonDocument("_id", productId), update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, productId));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, productId));
         }
 
         #endregion

@@ -10,7 +10,6 @@ using Grand.Services.Helpers;
 using Grand.Services.Localization;
 using Grand.Services.Logging;
 using Grand.Services.Media;
-using Grand.Services.Messages;
 using Grand.Services.Orders;
 using Grand.Services.Shipping;
 using Grand.Web.Areas.Admin.Extensions;
@@ -18,6 +17,7 @@ using Grand.Web.Areas.Admin.Interfaces;
 using Grand.Web.Areas.Admin.Models.Orders;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +31,7 @@ namespace Grand.Web.Areas.Admin.Services
         private readonly IWorkContext _workContext;
         private readonly IProductService _productService;
         private readonly IShipmentService _shipmentService;
-        private readonly IShippingService _shippingService;
+        private readonly IWarehouseService _warehouseService;
         private readonly IMeasureService _measureService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IProductAttributeParser _productAttributeParser;
@@ -39,7 +39,7 @@ namespace Grand.Web.Areas.Admin.Services
         private readonly ICustomerActivityService _customerActivityService;
         private readonly ILocalizationService _localizationService;
         private readonly IDownloadService _downloadService;
-
+        private readonly IServiceProvider _serviceProvider;
         private readonly MeasureSettings _measureSettings;
         private readonly ShippingSettings _shippingSettings;
 
@@ -48,7 +48,7 @@ namespace Grand.Web.Areas.Admin.Services
             IWorkContext workContext,
             IProductService productService,
             IShipmentService shipmentService,
-            IShippingService shippingService,
+            IWarehouseService warehouseService,
             IMeasureService measureService,
             IDateTimeHelper dateTimeHelper,
             IProductAttributeParser productAttributeParser,
@@ -56,6 +56,7 @@ namespace Grand.Web.Areas.Admin.Services
             ICustomerActivityService customerActivityService,
             ILocalizationService localizationService,
             IDownloadService downloadService,
+            IServiceProvider serviceProvider,
             MeasureSettings measureSettings,
             ShippingSettings shippingSettings)
         {
@@ -63,7 +64,7 @@ namespace Grand.Web.Areas.Admin.Services
             _workContext = workContext;
             _productService = productService;
             _shipmentService = shipmentService;
-            _shippingService = shippingService;
+            _warehouseService = warehouseService;
             _measureService = measureService;
             _dateTimeHelper = dateTimeHelper;
             _productAttributeParser = productAttributeParser;
@@ -71,6 +72,7 @@ namespace Grand.Web.Areas.Admin.Services
             _customerActivityService = customerActivityService;
             _localizationService = localizationService;
             _downloadService = downloadService;
+            _serviceProvider = serviceProvider;
             _measureSettings = measureSettings;
             _shippingSettings = shippingSettings;
         }
@@ -123,13 +125,13 @@ namespace Grand.Web.Areas.Admin.Services
                     var product = await _productService.GetProductByIdIncludeArch(orderItem.ProductId);
                     if (product != null)
                     {
-                        var warehouse = await _shippingService.GetWarehouseById(shipmentItem.WarehouseId);
+                        var warehouse = await _warehouseService.GetWarehouseById(shipmentItem.WarehouseId);
                         var shipmentItemModel = new ShipmentModel.ShipmentItemModel {
                             Id = shipmentItem.Id,
                             OrderItemId = orderItem.Id,
                             ProductId = orderItem.ProductId,
                             ProductName = product.Name,
-                            Sku = product.FormatSku(orderItem.AttributesXml, _productAttributeParser),
+                            Sku = product.FormatSku(orderItem.Attributes, _productAttributeParser),
                             AttributeInfo = orderItem.AttributeDescription,
                             ShippedFromWarehouse = warehouse != null ? warehouse.Name : null,
                             ShipSeparately = product.ShipSeparately,
@@ -146,9 +148,10 @@ namespace Grand.Web.Areas.Admin.Services
                 }
             }
 
-            if (prepareShipmentEvent && !String.IsNullOrEmpty(shipment.TrackingNumber))
+            if (prepareShipmentEvent && !string.IsNullOrEmpty(shipment.TrackingNumber))
             {
-                var srcm = _shippingService.LoadShippingRateComputationMethodBySystemName(order.ShippingRateComputationMethodSystemName);
+                var shippingService = _serviceProvider.GetRequiredService<IShippingService>();
+                var srcm = shippingService.LoadShippingRateComputationMethodBySystemName(order.ShippingRateComputationMethodSystemName);
                 if (srcm != null &&
                     srcm.PluginDescriptor.Installed &&
                     srcm.IsShippingRateComputationMethodActive(_shippingSettings))
@@ -331,7 +334,7 @@ namespace Grand.Web.Areas.Admin.Services
 
             //warehouses
             model.AvailableWarehouses.Add(new SelectListItem { Text = _localizationService.GetResource("Admin.Common.All"), Value = "" });
-            foreach (var w in await _shippingService.GetAllWarehouses())
+            foreach (var w in await _warehouseService.GetAllWarehouses())
                 model.AvailableWarehouses.Add(new SelectListItem { Text = w.Name, Value = w.Id.ToString() });
 
             return model;
@@ -378,7 +381,7 @@ namespace Grand.Web.Areas.Admin.Services
                     ProductId = orderItem.ProductId,
                     ProductName = product.Name,
                     WarehouseId = orderItem.WarehouseId,
-                    Sku = product.FormatSku(orderItem.AttributesXml, _productAttributeParser),
+                    Sku = product.FormatSku(orderItem.Attributes, _productAttributeParser),
                     AttributeInfo = orderItem.AttributeDescription,
                     ShipSeparately = product.ShipSeparately,
                     ItemWeight = orderItem.ItemWeight.HasValue ? string.Format("{0:F2} [{1}]", orderItem.ItemWeight, baseWeightIn) : "",
@@ -399,7 +402,7 @@ namespace Grand.Web.Areas.Admin.Services
                             .OrderBy(w => w.WarehouseId).ToList())
                         {
 
-                            var warehouse = await _shippingService.GetWarehouseById(pwi.WarehouseId);
+                            var warehouse = await _warehouseService.GetWarehouseById(pwi.WarehouseId);
                             if (warehouse != null)
                             {
                                 shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -407,7 +410,7 @@ namespace Grand.Web.Areas.Admin.Services
                                     WarehouseName = warehouse.Name,
                                     StockQuantity = pwi.StockQuantity,
                                     ReservedQuantity = pwi.ReservedQuantity,
-                                    PlannedQuantity = await _shipmentService.GetQuantityInShipments(product, orderItem.AttributesXml, warehouse.Id, true, true)
+                                    PlannedQuantity = await _shipmentService.GetQuantityInShipments(product, orderItem.Attributes, warehouse.Id, true, true)
                                 });
                             }
                         }
@@ -415,7 +418,7 @@ namespace Grand.Web.Areas.Admin.Services
                     else
                     {
                         //multiple warehouses are not supported
-                        var warehouse = await _shippingService.GetWarehouseById(product.WarehouseId);
+                        var warehouse = await _warehouseService.GetWarehouseById(product.WarehouseId);
                         if (warehouse != null)
                         {
                             shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -433,14 +436,14 @@ namespace Grand.Web.Areas.Admin.Services
                     {
                         //multiple warehouses supported
                         shipmentItemModel.AllowToChooseWarehouse = true;
-                        var comb = product.ProductAttributeCombinations.FirstOrDefault(x => x.AttributesXml == orderItem.AttributesXml);
+                        var comb = _productAttributeParser.FindProductAttributeCombination(product, orderItem.Attributes);
                         if (comb != null)
                         {
                             foreach (var pwi in comb.WarehouseInventory
                                 .OrderBy(w => w.WarehouseId).ToList())
                             {
 
-                                var warehouse = await _shippingService.GetWarehouseById(pwi.WarehouseId);
+                                var warehouse = await _warehouseService.GetWarehouseById(pwi.WarehouseId);
                                 if (warehouse != null)
                                 {
                                     shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -448,7 +451,7 @@ namespace Grand.Web.Areas.Admin.Services
                                         WarehouseName = warehouse.Name,
                                         StockQuantity = pwi.StockQuantity,
                                         ReservedQuantity = pwi.ReservedQuantity,
-                                        PlannedQuantity = await _shipmentService.GetQuantityInShipments(product, orderItem.AttributesXml, warehouse.Id, true, true)
+                                        PlannedQuantity = await _shipmentService.GetQuantityInShipments(product, orderItem.Attributes, warehouse.Id, true, true)
                                     });
                                 }
                             }
@@ -457,7 +460,7 @@ namespace Grand.Web.Areas.Admin.Services
                     else
                     {
                         //multiple warehouses are not supported
-                        var warehouse = await _shippingService.GetWarehouseById(product.WarehouseId);
+                        var warehouse = await _warehouseService.GetWarehouseById(product.WarehouseId);
                         if (warehouse != null)
                         {
                             shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -473,7 +476,7 @@ namespace Grand.Web.Areas.Admin.Services
                 {
                     if (!string.IsNullOrEmpty(orderItem.WarehouseId))
                     {
-                        var warehouse = await _shippingService.GetWarehouseById(product.WarehouseId);
+                        var warehouse = await _warehouseService.GetWarehouseById(product.WarehouseId);
                         if (warehouse != null)
                         {
                             shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -488,7 +491,7 @@ namespace Grand.Web.Areas.Admin.Services
                     else
                     {
                         shipmentItemModel.AllowToChooseWarehouse = true;
-                        var warehouses = await _shippingService.GetAllWarehouses();
+                        var warehouses = await _warehouseService.GetAllWarehouses();
                         foreach (var warehouse in warehouses)
                         {
                             shipmentItemModel.AvailableWarehouses.Add(new ShipmentModel.ShipmentItemModel.WarehouseInfo {
@@ -578,6 +581,7 @@ namespace Grand.Web.Areas.Admin.Services
                     var adminComment = form["AdminComment"];
                     shipment = new Shipment {
                         OrderId = order.Id,
+                        SeId = order.SeId,
                         TrackingNumber = trackingNumber,
                         TotalWeight = null,
                         ShippedDateUtc = null,
@@ -597,7 +601,7 @@ namespace Grand.Web.Areas.Admin.Services
                     OrderItemId = orderItem.Id,
                     Quantity = qtyToAdd,
                     WarehouseId = warehouseId,
-                    AttributeXML = orderItem.AttributesXml
+                    Attributes = orderItem.Attributes
                 };
                 shipment.ShipmentItems.Add(shipmentItem);
             }

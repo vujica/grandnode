@@ -1,14 +1,14 @@
 ﻿using AutoMapper;
 using Grand.Api.DTOs.Customers;
 using Grand.Domain.Customers;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Services.Common;
 using System;
 using System.Linq;
 
 namespace Grand.Api.Infrastructure.Mapper
 {
-    public class CustomerProfile : Profile, IMapperProfile
+    public class CustomerProfile : Profile, IAutoMapperProfile
     {
         public CustomerProfile()
         {
@@ -35,7 +35,6 @@ namespace Grand.Api.Infrastructure.Mapper
                 .ForMember(dest => dest.ShippingAddress, mo => mo.Ignore())
                 .ForMember(dest => dest.ShoppingCartItems, mo => mo.Ignore())
                 .ForMember(dest => dest.SystemName, mo => mo.Ignore())
-                .ForMember(dest => dest.UrlReferrer, mo => mo.Ignore())
                 .ForMember(dest => dest.CustomerRoles, mo => mo.Ignore())
                 .ForMember(dest => dest.GenericAttributes, mo => mo.Ignore());
 
@@ -48,7 +47,6 @@ namespace Grand.Api.Infrastructure.Mapper
                 .ForMember(dest => dest.Fax, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Fax, "")))
                 .ForMember(dest => dest.Gender, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Gender, "")))
                 .ForMember(dest => dest.Phone, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Phone, "")))
-                .ForMember(dest => dest.Signature, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Signature, "")))
                 .ForMember(dest => dest.StateProvinceId, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.StateProvinceId, "")))
                 .ForMember(dest => dest.StreetAddress, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.StreetAddress, "")))
                 .ForMember(dest => dest.StreetAddress2, mo => mo.MapFrom(src => src.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.StreetAddress2, "")))

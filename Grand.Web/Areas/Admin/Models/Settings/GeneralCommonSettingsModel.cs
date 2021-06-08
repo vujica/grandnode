@@ -1,14 +1,13 @@
-﻿using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Grand.Framework.Security.Captcha;
-using Grand.Web.Areas.Admin.Helpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    public partial class GeneralCommonSettingsModel : BaseGrandModel
+    public partial class GeneralCommonSettingsModel : BaseModel
     {
         public GeneralCommonSettingsModel()
         {
@@ -35,7 +34,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
 
         #region Nested classes
 
-        public partial class StoreInformationSettingsModel : BaseGrandModel
+        public partial class StoreInformationSettingsModel : BaseModel
         {
             public StoreInformationSettingsModel()
             {
@@ -64,6 +63,11 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayEuCookieLawWarning")]
             public bool DisplayEuCookieLawWarning { get; set; }
             public bool DisplayEuCookieLawWarning_OverrideForStore { get; set; }
+
+            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayPrivacyPreference")]
+            public bool DisplayPrivacyPreference { get; set; }
+            public bool DisplayPrivacyPreference_OverrideForStore { get; set; }
+            
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.FacebookLink")]
             public string FacebookLink { get; set; }
@@ -106,6 +110,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public partial class ThemeConfigurationModel
             {
                 public string ThemeName { get; set; }
+                public string ThemeVersion { get; set; }
                 public string ThemeTitle { get; set; }
                 public string PreviewImageUrl { get; set; }
                 public string PreviewText { get; set; }
@@ -116,7 +121,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             #endregion
         }
 
-        public partial class SeoSettingsModel : BaseGrandModel
+        public partial class SeoSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.PageTitleSeparator")]
 
@@ -175,9 +180,14 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.OpenGraphMetaTags")]
             public bool OpenGraphMetaTags { get; set; }
             public bool OpenGraphMetaTags_OverrideForStore { get; set; }
+
+            [UIHint("Picture")]
+            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.StorePicture")]
+            public string StorePictureId { get; set; }
+            public bool StorePictureId_OverrideForStore { get; set; }
         }
 
-        public partial class SecuritySettingsModel : BaseGrandModel
+        public partial class SecuritySettingsModel : BaseModel
         {
             public SecuritySettingsModel()
             {
@@ -195,9 +205,6 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public bool EnableXsrfProtectionForAdminArea { get; set; }
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.EnableXSRFProtectionForPublicStore")]
             public bool EnableXsrfProtectionForPublicStore { get; set; }
-
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.HoneypotEnabled")]
-            public bool HoneypotEnabled { get; set; }
 
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.CaptchaEnabled")]
@@ -253,12 +260,8 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public IList<SelectListItem> AvailableReCaptchaVersions { get; set; }
         }
 
-        public partial class PdfSettingsModel : BaseGrandModel
+        public partial class PdfSettingsModel : BaseModel
         {
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.PdfLetterPageSizeEnabled")]
-            public bool LetterPageSizeEnabled { get; set; }
-            public bool LetterPageSizeEnabled_OverrideForStore { get; set; }
-
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.PdfLogo")]
             [UIHint("Picture")]
             public string LogoPictureId { get; set; }
@@ -268,19 +271,17 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public bool DisablePdfInvoicesForPendingOrders { get; set; }
             public bool DisablePdfInvoicesForPendingOrders_OverrideForStore { get; set; }
 
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.InvoiceFooterTextColumn1")]
+            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.InvoiceHeaderText")]
+            public string InvoiceHeaderText { get; set; }
+            public bool InvoiceHeaderText_OverrideForStore { get; set; }
 
-            public string InvoiceFooterTextColumn1 { get; set; }
-            public bool InvoiceFooterTextColumn1_OverrideForStore { get; set; }
-
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.InvoiceFooterTextColumn2")]
-
-            public string InvoiceFooterTextColumn2 { get; set; }
-            public bool InvoiceFooterTextColumn2_OverrideForStore { get; set; }
+            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.InvoiceFooterText")]
+            public string InvoiceFooterText { get; set; }
+            public bool InvoiceFooterText_OverrideForStore { get; set; }
 
         }
 
-        public partial class LocalizationSettingsModel : BaseGrandModel
+        public partial class LocalizationSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.UseImagesForLanguageSelection")]
             public bool UseImagesForLanguageSelection { get; set; }
@@ -296,18 +297,15 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             
         }
 
-        public partial class FullTextSettingsModel : BaseGrandModel
+        public partial class FullTextSettingsModel : BaseModel
         {
             public bool Supported { get; set; }
 
             public bool Enabled { get; set; }
 
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.FullTextSettings.SearchMode")]
-            public int SearchMode { get; set; }
-            public SelectList SearchModeValues { get; set; }
         }
 
-        public partial class GoogleAnalyticsSettingsModel : BaseGrandModel
+        public partial class GoogleAnalyticsSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.GoogleAnalyticsPrivateKey")]
             public string gaprivateKey { get; set; }
@@ -323,7 +321,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
 
         }
 
-        public partial class DisplayMenuSettingsModel : BaseGrandModel
+        public partial class DisplayMenuSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayMenuSettings.DisplayHomePageMenu")]
             public bool DisplayHomePageMenu { get; set; }
@@ -340,15 +338,11 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayMenuSettings.DisplayBlogMenu")]
             public bool DisplayBlogMenu { get; set; }
             public bool DisplayBlogMenu_OverrideForStore { get; set; }
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayMenuSettings.DisplayForumsMenu")]
-            public bool DisplayForumsMenu { get; set; }
-            public bool DisplayForumsMenu_OverrideForStore { get; set; }
-            [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.DisplayMenuSettings.DisplayContactUsMenu")]
             public bool DisplayContactUsMenu { get; set; }
             public bool DisplayContactUsMenu_OverrideForStore { get; set; }
         }
 
-        public partial class KnowledgebaseSettingsModel : BaseGrandModel
+        public partial class KnowledgebaseSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.KnowledgebaseSettings.Enabled")]
             public bool Enabled { get; set; }

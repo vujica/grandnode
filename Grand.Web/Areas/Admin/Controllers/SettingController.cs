@@ -7,7 +7,6 @@ using Grand.Domain.Common;
 using Grand.Domain.Configuration;
 using Grand.Domain.Customers;
 using Grand.Domain.Directory;
-using Grand.Domain.Forums;
 using Grand.Domain.Knowledgebase;
 using Grand.Domain.Localization;
 using Grand.Domain.Media;
@@ -49,7 +48,6 @@ using Grand.Web.Areas.Admin.Models.Settings;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -83,7 +81,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IMediator _mediator;
         private readonly IReturnRequestService _returnRequestService;
         private readonly ILanguageService _languageService;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
 
         #endregion
 
@@ -109,7 +107,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             IMediator mediator,
             IReturnRequestService returnRequestService,
             ILanguageService languageService,
-            ICacheManager cacheManager)
+            ICacheBase cacheManager)
         {
             _settingService = settingService;
             _countryService = countryService;
@@ -131,7 +129,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             _mediator = mediator;
             _returnRequestService = returnRequestService;
             _languageService = languageService;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
         }
 
         #endregion
@@ -153,7 +151,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         protected async Task ClearCache()
         {
-            await _cacheManager.Clear();
+            await _cacheBase.Clear();
         }
 
         public async Task<IActionResult> ChangeStoreScopeConfiguration(string storeid, string returnUrl = "")
@@ -174,10 +172,10 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             //home page
             if (String.IsNullOrEmpty(returnUrl))
-                returnUrl = Url.Action("Index", "Home", new { area = "Admin" });
+                returnUrl = Url.Action("Index", "Home", new { area = Constants.AreaAdmin });
             //prevent open redirection attack
             if (!Url.IsLocalUrl(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             return Redirect(returnUrl);
         }
 
@@ -199,6 +197,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 model.ShowBlogOnHomePage_OverrideForStore = _settingService.SettingExists(blogSettings, x => x.ShowBlogOnHomePage, storeScope);
                 model.HomePageBlogCount_OverrideForStore = _settingService.SettingExists(blogSettings, x => x.HomePageBlogCount, storeScope);
                 model.MaxTextSizeHomePage_OverrideForStore = _settingService.SettingExists(blogSettings, x => x.MaxTextSizeHomePage, storeScope);
+                model.ShowBlogPostsInSearchAutoComplete_OverrideForStore = _settingService.SettingExists(blogSettings, x => x.ShowBlogPostsInSearchAutoComplete, storeScope);
             }
 
             return View(model);
@@ -220,6 +219,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             await UpdateOverrideForStore(storeScope, model.ShowBlogOnHomePage_OverrideForStore, blogSettings, x => x.ShowBlogOnHomePage);
             await UpdateOverrideForStore(storeScope, model.HomePageBlogCount_OverrideForStore, blogSettings, x => x.HomePageBlogCount);
             await UpdateOverrideForStore(storeScope, model.MaxTextSizeHomePage_OverrideForStore, blogSettings, x => x.MaxTextSizeHomePage);
+            await UpdateOverrideForStore(storeScope, model.ShowBlogPostsInSearchAutoComplete_OverrideForStore, blogSettings, x => x.ShowBlogPostsInSearchAutoComplete);
 
             //now clear cache
             await ClearCache();
@@ -330,85 +330,6 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Updated"));
             return RedirectToAction("Vendor");
-        }
-
-        public async Task<IActionResult> Forum()
-        {
-            //load settings for a chosen store scope
-            var storeScope = await GetActiveStoreScopeConfiguration(_storeService, _workContext);
-            var forumSettings = _settingService.LoadSetting<ForumSettings>(storeScope);
-            var model = forumSettings.ToModel();
-            model.ActiveStoreScopeConfiguration = storeScope;
-            if (!String.IsNullOrEmpty(storeScope))
-            {
-                model.ForumsEnabled_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ForumsEnabled, storeScope);
-                model.RelativeDateTimeFormattingEnabled_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.RelativeDateTimeFormattingEnabled, storeScope);
-                model.ShowCustomersPostCount_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ShowCustomersPostCount, storeScope);
-                model.AllowGuestsToCreatePosts_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowGuestsToCreatePosts, storeScope);
-                model.AllowGuestsToCreateTopics_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowGuestsToCreateTopics, storeScope);
-                model.AllowCustomersToEditPosts_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowCustomersToEditPosts, storeScope);
-                model.AllowCustomersToDeletePosts_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowCustomersToDeletePosts, storeScope);
-                model.AllowCustomersToManageSubscriptions_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowCustomersToManageSubscriptions, storeScope);
-                model.TopicsPageSize_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.TopicsPageSize, storeScope);
-                model.PostsPageSize_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.PostsPageSize, storeScope);
-                model.ForumEditor_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ForumEditor, storeScope);
-                model.SignaturesEnabled_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.SignaturesEnabled, storeScope);
-                model.AllowPrivateMessages_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowPrivateMessages, storeScope);
-                model.ShowAlertForPM_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ShowAlertForPM, storeScope);
-                model.NotifyAboutPrivateMessages_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.NotifyAboutPrivateMessages, storeScope);
-                model.ActiveDiscussionsFeedEnabled_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ActiveDiscussionsFeedEnabled, storeScope);
-                model.ActiveDiscussionsFeedCount_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ActiveDiscussionsFeedCount, storeScope);
-                model.ForumFeedsEnabled_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ForumFeedsEnabled, storeScope);
-                model.ForumFeedCount_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ForumFeedCount, storeScope);
-                model.SearchResultsPageSize_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.SearchResultsPageSize, storeScope);
-                model.ActiveDiscussionsPageSize_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.ActiveDiscussionsPageSize, storeScope);
-                model.AllowPostVoting_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.AllowPostVoting, storeScope);
-                model.MaxVotesPerDay_OverrideForStore = _settingService.SettingExists(forumSettings, x => x.MaxVotesPerDay, storeScope);
-            }
-            model.ForumEditorValues = forumSettings.ForumEditor.ToSelectList(HttpContext);
-
-            return View(model);
-        }
-        [HttpPost]
-        public async Task<IActionResult> Forum(ForumSettingsModel model)
-        {
-            //load settings for a chosen store scope
-            var storeScope = await GetActiveStoreScopeConfiguration(_storeService, _workContext);
-            var forumSettings = _settingService.LoadSetting<ForumSettings>(storeScope);
-            forumSettings = model.ToEntity(forumSettings);
-
-            await UpdateOverrideForStore(storeScope, model.ForumsEnabled_OverrideForStore, forumSettings, x => x.ForumsEnabled);
-            await UpdateOverrideForStore(storeScope, model.RelativeDateTimeFormattingEnabled_OverrideForStore, forumSettings, x => x.RelativeDateTimeFormattingEnabled);
-            await UpdateOverrideForStore(storeScope, model.ShowCustomersPostCount_OverrideForStore, forumSettings, x => x.ShowCustomersPostCount);
-            await UpdateOverrideForStore(storeScope, model.AllowGuestsToCreatePosts_OverrideForStore, forumSettings, x => x.AllowGuestsToCreatePosts);
-            await UpdateOverrideForStore(storeScope, model.AllowGuestsToCreateTopics_OverrideForStore, forumSettings, x => x.AllowGuestsToCreateTopics);
-            await UpdateOverrideForStore(storeScope, model.AllowCustomersToEditPosts_OverrideForStore, forumSettings, x => x.AllowCustomersToEditPosts);
-            await UpdateOverrideForStore(storeScope, model.AllowCustomersToDeletePosts_OverrideForStore, forumSettings, x => x.AllowCustomersToDeletePosts);
-            await UpdateOverrideForStore(storeScope, model.AllowCustomersToManageSubscriptions_OverrideForStore, forumSettings, x => x.AllowCustomersToManageSubscriptions);
-            await UpdateOverrideForStore(storeScope, model.TopicsPageSize_OverrideForStore, forumSettings, x => x.TopicsPageSize);
-            await UpdateOverrideForStore(storeScope, model.PostsPageSize_OverrideForStore, forumSettings, x => x.PostsPageSize);
-            await UpdateOverrideForStore(storeScope, model.ForumEditor_OverrideForStore, forumSettings, x => x.ForumEditor);
-            await UpdateOverrideForStore(storeScope, model.SignaturesEnabled_OverrideForStore, forumSettings, x => x.SignaturesEnabled);
-            await UpdateOverrideForStore(storeScope, model.AllowPrivateMessages_OverrideForStore, forumSettings, x => x.AllowPrivateMessages);
-            await UpdateOverrideForStore(storeScope, model.ShowAlertForPM_OverrideForStore, forumSettings, x => x.ShowAlertForPM);
-            await UpdateOverrideForStore(storeScope, model.NotifyAboutPrivateMessages_OverrideForStore, forumSettings, x => x.NotifyAboutPrivateMessages);
-            await UpdateOverrideForStore(storeScope, model.ActiveDiscussionsFeedEnabled_OverrideForStore, forumSettings, x => x.ActiveDiscussionsFeedEnabled);
-            await UpdateOverrideForStore(storeScope, model.ActiveDiscussionsFeedCount_OverrideForStore, forumSettings, x => x.ActiveDiscussionsFeedCount);
-            await UpdateOverrideForStore(storeScope, model.ForumFeedsEnabled_OverrideForStore, forumSettings, x => x.ForumFeedsEnabled);
-            await UpdateOverrideForStore(storeScope, model.ForumFeedCount_OverrideForStore, forumSettings, x => x.ForumFeedCount);
-            await UpdateOverrideForStore(storeScope, model.SearchResultsPageSize_OverrideForStore, forumSettings, x => x.SearchResultsPageSize);
-            await UpdateOverrideForStore(storeScope, model.ActiveDiscussionsPageSize_OverrideForStore, forumSettings, x => x.ActiveDiscussionsPageSize);
-            await UpdateOverrideForStore(storeScope, model.AllowPostVoting_OverrideForStore, forumSettings, x => x.AllowPostVoting);
-            await UpdateOverrideForStore(storeScope, model.MaxVotesPerDay_OverrideForStore, forumSettings, x => x.MaxVotesPerDay);
-
-            //now clear cache
-            await ClearCache();
-
-            //activity log
-            await _customerActivityService.InsertActivity("EditSettings", "", _localizationService.GetResource("ActivityLog.EditSettings"));
-
-            SuccessNotification(_localizationService.GetResource("Admin.Configuration.Updated"));
-            return RedirectToAction("Forum");
         }
 
         public async Task<IActionResult> News()
@@ -1011,7 +932,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             {
                 model.IsReOrderAllowed_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.IsReOrderAllowed, storeScope);
                 model.MinOrderSubtotalAmount_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.MinOrderSubtotalAmount, storeScope);
-                model.MinOrderTotalAmount_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.MinOrderTotalAmount, storeScope);
                 model.MinOrderSubtotalAmountIncludingTax_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.MinOrderSubtotalAmountIncludingTax, storeScope);
                 model.AnonymousCheckoutAllowed_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.AnonymousCheckoutAllowed, storeScope);
                 model.TermsOfServiceOnShoppingCartPage_OverrideForStore = _settingService.SettingExists(orderSettings, x => x.TermsOfServiceOnShoppingCartPage, storeScope);
@@ -1054,7 +974,6 @@ namespace Grand.Web.Areas.Admin.Controllers
                 await UpdateOverrideForStore(storeScope, model.IsReOrderAllowed_OverrideForStore, orderSettings, x => x.IsReOrderAllowed);
                 await UpdateOverrideForStore(storeScope, model.MinOrderSubtotalAmount_OverrideForStore, orderSettings, x => x.MinOrderSubtotalAmount);
                 await UpdateOverrideForStore(storeScope, model.MinOrderSubtotalAmountIncludingTax_OverrideForStore, orderSettings, x => x.MinOrderSubtotalAmountIncludingTax);
-                await UpdateOverrideForStore(storeScope, model.MinOrderTotalAmount_OverrideForStore, orderSettings, x => x.MinOrderTotalAmount);
                 await UpdateOverrideForStore(storeScope, model.AnonymousCheckoutAllowed_OverrideForStore, orderSettings, x => x.AnonymousCheckoutAllowed);
                 await UpdateOverrideForStore(storeScope, model.TermsOfServiceOnShoppingCartPage_OverrideForStore, orderSettings, x => x.TermsOfServiceOnShoppingCartPage);
                 await UpdateOverrideForStore(storeScope, model.TermsOfServiceOnOrderConfirmPage_OverrideForStore, orderSettings, x => x.TermsOfServiceOnOrderConfirmPage);
@@ -1076,6 +995,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 await _settingService.SaveSetting(orderSettings, x => x.CompleteOrderWhenDelivered, "", false);
                 await _settingService.SaveSetting(orderSettings, x => x.GiftCards_Activated_OrderStatusId, "", false);
                 await _settingService.SaveSetting(orderSettings, x => x.DeactivateGiftCardsAfterCancelOrder, "", false);
+                await _settingService.SaveSetting(orderSettings, x => x.DaysToCancelUnpaidOrder, "", false);
 
                 //now clear cache
                 await ClearCache();
@@ -1307,6 +1227,10 @@ namespace Grand.Web.Areas.Admin.Controllers
             {
                 var rra = model.ToEntity();
                 await _returnRequestService.InsertReturnRequestAction(rra);
+
+                //now clear cache
+                await ClearCache();
+
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Added"));
                 return continueEditing ? RedirectToAction("ReturnRequestActionEdit", new { id = rra.Id }) : RedirectToAction("ReturnRequestActionList");
             }
@@ -1377,7 +1301,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.ActiveStoreScopeConfiguration = storeScope;
             if (!String.IsNullOrEmpty(storeScope))
             {
-                model.AvatarPictureSize_OverrideForStore = _settingService.SettingExists(mediaSettings, x => x.AvatarPictureSize, storeScope);
                 model.ProductThumbPictureSize_OverrideForStore = _settingService.SettingExists(mediaSettings, x => x.ProductThumbPictureSize, storeScope);
                 model.ProductDetailsPictureSize_OverrideForStore = _settingService.SettingExists(mediaSettings, x => x.ProductDetailsPictureSize, storeScope);
                 model.ProductThumbPictureSizeOnProductDetailsPage_OverrideForStore = _settingService.SettingExists(mediaSettings, x => x.ProductThumbPictureSizeOnProductDetailsPage, storeScope);
@@ -1405,7 +1328,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             var mediaSettings = _settingService.LoadSetting<MediaSettings>(storeScope);
             mediaSettings = model.ToEntity(mediaSettings);
 
-            await UpdateOverrideForStore(storeScope, model.AvatarPictureSize_OverrideForStore, mediaSettings, x => x.AvatarPictureSize);
             await UpdateOverrideForStore(storeScope, model.ProductThumbPictureSize_OverrideForStore, mediaSettings, x => x.ProductThumbPictureSize);
             await UpdateOverrideForStore(storeScope, model.ProductDetailsPictureSize_OverrideForStore, mediaSettings, x => x.ProductDetailsPictureSize);
             await UpdateOverrideForStore(storeScope, model.ProductThumbPictureSizeOnProductDetailsPage_OverrideForStore, mediaSettings, x => x.ProductThumbPictureSizeOnProductDetailsPage);
@@ -1473,6 +1395,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             //activity log
             await _customerActivityService.InsertActivity("EditSettings", "", _localizationService.GetResource("ActivityLog.EditSettings"));
 
+
+            //now clear cache
+            await ClearCache();
+
+
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Updated"));
             return RedirectToAction("Media");
         }
@@ -1502,8 +1429,6 @@ namespace Grand.Web.Areas.Admin.Controllers
                 });
             }
 
-            model.ExternalAuthenticationSettings.AutoRegisterEnabled = externalAuthenticationSettings.AutoRegisterEnabled;
-
             return View(model);
         }
         [HttpPost]
@@ -1513,8 +1438,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             var customerSettings = _settingService.LoadSetting<CustomerSettings>(storeScope);
             var addressSettings = _settingService.LoadSetting<AddressSettings>(storeScope);
             var dateTimeSettings = _settingService.LoadSetting<DateTimeSettings>(storeScope);
-            var externalAuthenticationSettings = _settingService.LoadSetting<ExternalAuthenticationSettings>(storeScope);
-
+            
             customerSettings = model.CustomerSettings.ToEntity(customerSettings);
             await _settingService.SaveSetting(customerSettings);
 
@@ -1525,8 +1449,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             dateTimeSettings.AllowCustomersToSetTimeZone = model.DateTimeSettings.AllowCustomersToSetTimeZone;
             await _settingService.SaveSetting(dateTimeSettings);
 
-            externalAuthenticationSettings.AutoRegisterEnabled = model.ExternalAuthenticationSettings.AutoRegisterEnabled;
-            await _settingService.SaveSetting(externalAuthenticationSettings);
+            //now clear cache
+            await ClearCache();
 
             //activity log
             await _customerActivityService.InsertActivity("EditSettings", "", _localizationService.GetResource("ActivityLog.EditSettings"));
@@ -1556,12 +1480,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.StoreInformationSettings.AvailableStoreThemes = _themeProvider
                 .GetThemeConfigurations()
                 .Select(x => new GeneralCommonSettingsModel.StoreInformationSettingsModel.ThemeConfigurationModel {
-                    ThemeTitle = x.ThemeTitle,
-                    ThemeName = x.ThemeName,
+                    ThemeTitle = x.Title,
+                    ThemeName = x.Name,
+                    ThemeVersion = x.Version,
                     PreviewImageUrl = x.PreviewImageUrl,
                     PreviewText = x.PreviewText,
                     SupportRtl = x.SupportRtl,
-                    Selected = x.ThemeName.Equals(storeInformationSettings.DefaultStoreTheme, StringComparison.OrdinalIgnoreCase)
+                    Selected = x.Name.Equals(storeInformationSettings.DefaultStoreTheme, StringComparison.OrdinalIgnoreCase)
                 })
                 .ToList();
             model.StoreInformationSettings.AllowCustomerToSelectTheme = storeInformationSettings.AllowCustomerToSelectTheme;
@@ -1569,6 +1494,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.StoreInformationSettings.LogoPictureId = storeInformationSettings.LogoPictureId;
             //EU Cookie law
             model.StoreInformationSettings.DisplayEuCookieLawWarning = storeInformationSettings.DisplayEuCookieLawWarning;
+            model.StoreInformationSettings.DisplayPrivacyPreference = storeInformationSettings.DisplayPrivacyPreference;
             //social pages
             model.StoreInformationSettings.FacebookLink = storeInformationSettings.FacebookLink;
             model.StoreInformationSettings.TwitterLink = storeInformationSettings.TwitterLink;
@@ -1589,6 +1515,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 model.StoreInformationSettings.AllowCustomerToSelectTheme_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.AllowCustomerToSelectTheme, storeScope);
                 model.StoreInformationSettings.LogoPictureId_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.LogoPictureId, storeScope);
                 model.StoreInformationSettings.DisplayEuCookieLawWarning_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.DisplayEuCookieLawWarning, storeScope);
+                model.StoreInformationSettings.DisplayPrivacyPreference_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.DisplayPrivacyPreference, storeScope);
                 model.StoreInformationSettings.FacebookLink_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.FacebookLink, storeScope);
                 model.StoreInformationSettings.TwitterLink_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.TwitterLink, storeScope);
                 model.StoreInformationSettings.YoutubeLink_OverrideForStore = _settingService.SettingExists(storeInformationSettings, x => x.YoutubeLink, storeScope);
@@ -1616,6 +1543,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.SeoSettings.EnableCssBundling = seoSettings.EnableCssBundling;
             model.SeoSettings.TwitterMetaTags = seoSettings.TwitterMetaTags;
             model.SeoSettings.OpenGraphMetaTags = seoSettings.OpenGraphMetaTags;
+            model.SeoSettings.StorePictureId = seoSettings.StorePictureId;
             //override settings
             if (!String.IsNullOrEmpty(storeScope))
             {
@@ -1632,6 +1560,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 model.SeoSettings.EnableCssBundling_OverrideForStore = _settingService.SettingExists(seoSettings, x => x.EnableCssBundling, storeScope);
                 model.SeoSettings.TwitterMetaTags_OverrideForStore = _settingService.SettingExists(seoSettings, x => x.TwitterMetaTags, storeScope);
                 model.SeoSettings.OpenGraphMetaTags_OverrideForStore = _settingService.SettingExists(seoSettings, x => x.OpenGraphMetaTags, storeScope);
+                model.SeoSettings.StorePictureId_OverrideForStore = _settingService.SettingExists(seoSettings, x => x.StorePictureId, storeScope);
             }
 
             //security settings
@@ -1647,7 +1576,6 @@ namespace Grand.Web.Areas.Admin.Controllers
                 }
             model.SecuritySettings.EnableXsrfProtectionForAdminArea = securitySettings.EnableXsrfProtectionForAdminArea;
             model.SecuritySettings.EnableXsrfProtectionForPublicStore = securitySettings.EnableXsrfProtectionForPublicStore;
-            model.SecuritySettings.HoneypotEnabled = securitySettings.HoneypotEnabled;
             model.SecuritySettings.CaptchaEnabled = captchaSettings.Enabled;
             model.SecuritySettings.CaptchaShowOnLoginPage = captchaSettings.ShowOnLoginPage;
             model.SecuritySettings.CaptchaShowOnRegistrationPage = captchaSettings.ShowOnRegistrationPage;
@@ -1668,19 +1596,17 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             //PDF settings
             var pdfSettings = _settingService.LoadSetting<PdfSettings>(storeScope);
-            model.PdfSettings.LetterPageSizeEnabled = pdfSettings.LetterPageSizeEnabled;
             model.PdfSettings.LogoPictureId = pdfSettings.LogoPictureId;
             model.PdfSettings.DisablePdfInvoicesForPendingOrders = pdfSettings.DisablePdfInvoicesForPendingOrders;
-            model.PdfSettings.InvoiceFooterTextColumn1 = pdfSettings.InvoiceFooterTextColumn1;
-            model.PdfSettings.InvoiceFooterTextColumn2 = pdfSettings.InvoiceFooterTextColumn2;
+            model.PdfSettings.InvoiceHeaderText = pdfSettings.InvoiceHeaderText;
+            model.PdfSettings.InvoiceFooterText = pdfSettings.InvoiceFooterText;
             //override settings
             if (!String.IsNullOrEmpty(storeScope))
             {
-                model.PdfSettings.LetterPageSizeEnabled_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.LetterPageSizeEnabled, storeScope);
                 model.PdfSettings.LogoPictureId_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.LogoPictureId, storeScope);
                 model.PdfSettings.DisablePdfInvoicesForPendingOrders_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.DisablePdfInvoicesForPendingOrders, storeScope);
-                model.PdfSettings.InvoiceFooterTextColumn1_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.InvoiceFooterTextColumn1, storeScope);
-                model.PdfSettings.InvoiceFooterTextColumn2_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.InvoiceFooterTextColumn2, storeScope);
+                model.PdfSettings.InvoiceHeaderText_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.InvoiceHeaderText, storeScope);
+                model.PdfSettings.InvoiceFooterText_OverrideForStore = _settingService.SettingExists(pdfSettings, x => x.InvoiceFooterText, storeScope);
             }
 
             //localization
@@ -1693,8 +1619,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             //full-text support
             model.FullTextSettings.Supported = true;
             model.FullTextSettings.Enabled = commonSettings.UseFullTextSearch;
-            model.FullTextSettings.SearchMode = (int)commonSettings.FullTextMode;
-            model.FullTextSettings.SearchModeValues = commonSettings.FullTextMode.ToSelectList(HttpContext);
 
             //google analytics
             model.GoogleAnalyticsSettings.gaprivateKey = googleAnalyticsSettings.gaprivateKey;
@@ -1715,7 +1639,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.DisplayMenuSettings.DisplaySearchMenu = displayMenuItemSettings.DisplaySearchMenu;
             model.DisplayMenuSettings.DisplayCustomerMenu = displayMenuItemSettings.DisplayCustomerMenu;
             model.DisplayMenuSettings.DisplayBlogMenu = displayMenuItemSettings.DisplayBlogMenu;
-            model.DisplayMenuSettings.DisplayForumsMenu = displayMenuItemSettings.DisplayForumsMenu;
             model.DisplayMenuSettings.DisplayContactUsMenu = displayMenuItemSettings.DisplayContactUsMenu;
             //override settings
             if (!String.IsNullOrEmpty(storeScope))
@@ -1725,7 +1648,6 @@ namespace Grand.Web.Areas.Admin.Controllers
                 model.DisplayMenuSettings.DisplaySearchMenu_OverrideForStore = _settingService.SettingExists(displayMenuItemSettings, x => x.DisplaySearchMenu, storeScope);
                 model.DisplayMenuSettings.DisplayCustomerMenu_OverrideForStore = _settingService.SettingExists(displayMenuItemSettings, x => x.DisplayCustomerMenu, storeScope);
                 model.DisplayMenuSettings.DisplayBlogMenu_OverrideForStore = _settingService.SettingExists(displayMenuItemSettings, x => x.DisplayBlogMenu, storeScope);
-                model.DisplayMenuSettings.DisplayForumsMenu_OverrideForStore = _settingService.SettingExists(displayMenuItemSettings, x => x.DisplayForumsMenu, storeScope);
                 model.DisplayMenuSettings.DisplayContactUsMenu_OverrideForStore = _settingService.SettingExists(displayMenuItemSettings, x => x.DisplayContactUsMenu, storeScope);
             }
 
@@ -1754,6 +1676,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             storeInformationSettings.LogoPictureId = model.StoreInformationSettings.LogoPictureId;
             //EU Cookie law
             storeInformationSettings.DisplayEuCookieLawWarning = model.StoreInformationSettings.DisplayEuCookieLawWarning;
+            storeInformationSettings.DisplayPrivacyPreference = model.StoreInformationSettings.DisplayPrivacyPreference;
             //social pages
             storeInformationSettings.FacebookLink = model.StoreInformationSettings.FacebookLink;
             storeInformationSettings.TwitterLink = model.StoreInformationSettings.TwitterLink;
@@ -1772,6 +1695,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.AllowCustomerToSelectTheme_OverrideForStore, storeInformationSettings, x => x.AllowCustomerToSelectTheme);
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.LogoPictureId_OverrideForStore, storeInformationSettings, x => x.LogoPictureId);
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.DisplayEuCookieLawWarning_OverrideForStore, storeInformationSettings, x => x.DisplayEuCookieLawWarning);
+            await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.DisplayPrivacyPreference_OverrideForStore, storeInformationSettings, x => x.DisplayPrivacyPreference);
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.FacebookLink_OverrideForStore, storeInformationSettings, x => x.FacebookLink);
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.TwitterLink_OverrideForStore, storeInformationSettings, x => x.TwitterLink);
             await UpdateOverrideForStore(storeScope, model.StoreInformationSettings.YoutubeLink_OverrideForStore, storeInformationSettings, x => x.YoutubeLink);
@@ -1798,6 +1722,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             seoSettings.EnableCssBundling = model.SeoSettings.EnableCssBundling;
             seoSettings.TwitterMetaTags = model.SeoSettings.TwitterMetaTags;
             seoSettings.OpenGraphMetaTags = model.SeoSettings.OpenGraphMetaTags;
+            seoSettings.StorePictureId = model.SeoSettings.StorePictureId;
 
 
             await UpdateOverrideForStore(storeScope, model.SeoSettings.PageTitleSeparator_OverrideForStore, seoSettings, x => x.PageTitleSeparator);
@@ -1813,6 +1738,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             await UpdateOverrideForStore(storeScope, model.SeoSettings.EnableCssBundling_OverrideForStore, seoSettings, x => x.EnableCssBundling);
             await UpdateOverrideForStore(storeScope, model.SeoSettings.TwitterMetaTags_OverrideForStore, seoSettings, x => x.TwitterMetaTags);
             await UpdateOverrideForStore(storeScope, model.SeoSettings.OpenGraphMetaTags_OverrideForStore, seoSettings, x => x.OpenGraphMetaTags);
+            await UpdateOverrideForStore(storeScope, model.SeoSettings.StorePictureId_OverrideForStore, seoSettings, x => x.StorePictureId);
 
             //security settings
             var securitySettings = _settingService.LoadSetting<SecuritySettings>(storeScope);
@@ -1826,7 +1752,6 @@ namespace Grand.Web.Areas.Admin.Controllers
                         securitySettings.AdminAreaAllowedIpAddresses.Add(s.Trim());
             securitySettings.EnableXsrfProtectionForAdminArea = model.SecuritySettings.EnableXsrfProtectionForAdminArea;
             securitySettings.EnableXsrfProtectionForPublicStore = model.SecuritySettings.EnableXsrfProtectionForPublicStore;
-            securitySettings.HoneypotEnabled = model.SecuritySettings.HoneypotEnabled;
             await _settingService.SaveSetting(securitySettings);
             captchaSettings.Enabled = model.SecuritySettings.CaptchaEnabled;
             captchaSettings.ShowOnLoginPage = model.SecuritySettings.CaptchaShowOnLoginPage;
@@ -1854,17 +1779,15 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             //PDF settings
             var pdfSettings = _settingService.LoadSetting<PdfSettings>(storeScope);
-            pdfSettings.LetterPageSizeEnabled = model.PdfSettings.LetterPageSizeEnabled;
             pdfSettings.LogoPictureId = model.PdfSettings.LogoPictureId;
             pdfSettings.DisablePdfInvoicesForPendingOrders = model.PdfSettings.DisablePdfInvoicesForPendingOrders;
-            pdfSettings.InvoiceFooterTextColumn1 = model.PdfSettings.InvoiceFooterTextColumn1;
-            pdfSettings.InvoiceFooterTextColumn2 = model.PdfSettings.InvoiceFooterTextColumn2;
+            pdfSettings.InvoiceHeaderText = model.PdfSettings.InvoiceHeaderText;
+            pdfSettings.InvoiceFooterText = model.PdfSettings.InvoiceFooterText;
 
-            await UpdateOverrideForStore(storeScope, model.PdfSettings.LetterPageSizeEnabled_OverrideForStore, pdfSettings, x => x.LetterPageSizeEnabled);
             await UpdateOverrideForStore(storeScope, model.PdfSettings.LogoPictureId_OverrideForStore, pdfSettings, x => x.LogoPictureId);
             await UpdateOverrideForStore(storeScope, model.PdfSettings.DisablePdfInvoicesForPendingOrders_OverrideForStore, pdfSettings, x => x.DisablePdfInvoicesForPendingOrders);
-            await UpdateOverrideForStore(storeScope, model.PdfSettings.InvoiceFooterTextColumn1_OverrideForStore, pdfSettings, x => x.InvoiceFooterTextColumn1);
-            await UpdateOverrideForStore(storeScope, model.PdfSettings.InvoiceFooterTextColumn2_OverrideForStore, pdfSettings, x => x.InvoiceFooterTextColumn2);
+            await UpdateOverrideForStore(storeScope, model.PdfSettings.InvoiceHeaderText_OverrideForStore, pdfSettings, x => x.InvoiceHeaderText);
+            await UpdateOverrideForStore(storeScope, model.PdfSettings.InvoiceFooterText_OverrideForStore, pdfSettings, x => x.InvoiceFooterText);
 
             //localization settings
             var localizationSettings = _settingService.LoadSetting<LocalizationSettings>(storeScope);
@@ -1873,10 +1796,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             localizationSettings.LoadAllLocaleRecordsOnStartup = model.LocalizationSettings.LoadAllLocaleRecordsOnStartup;
             localizationSettings.LoadAllLocalizedPropertiesOnStartup = model.LocalizationSettings.LoadAllLocalizedPropertiesOnStartup;
             await _settingService.SaveSetting(localizationSettings);
-
-            //full-text
-            commonSettings.FullTextMode = (FulltextSearchMode)model.FullTextSettings.SearchMode;
-            await _settingService.SaveSetting(commonSettings);
 
             //admin settings
             var adminareasettings = _settingService.LoadSetting<AdminAreaSettings>(storeScope);
@@ -1900,7 +1819,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             displayMenuItemSettings.DisplaySearchMenu = model.DisplayMenuSettings.DisplaySearchMenu;
             displayMenuItemSettings.DisplayCustomerMenu = model.DisplayMenuSettings.DisplayCustomerMenu;
             displayMenuItemSettings.DisplayBlogMenu = model.DisplayMenuSettings.DisplayBlogMenu;
-            displayMenuItemSettings.DisplayForumsMenu = model.DisplayMenuSettings.DisplayForumsMenu;
             displayMenuItemSettings.DisplayContactUsMenu = model.DisplayMenuSettings.DisplayContactUsMenu;
 
             await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplayHomePageMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplayHomePageMenu);
@@ -1908,7 +1826,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplaySearchMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplaySearchMenu);
             await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplayCustomerMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplayCustomerMenu);
             await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplayBlogMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplayBlogMenu);
-            await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplayForumsMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplayForumsMenu);
             await UpdateOverrideForStore(storeScope, model.DisplayMenuSettings.DisplayContactUsMenu_OverrideForStore, displayMenuItemSettings, x => x.DisplayContactUsMenu);
 
             //Knowledgebase
@@ -2011,6 +1928,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
                 securitySettings.EncryptionKey = newEncryptionPrivateKey;
                 await _settingService.SaveSetting(securitySettings);
+
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.GeneralCommon.EncryptionKey.Changed"));
             }
             catch (Exception exc)
@@ -2021,11 +1939,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             //selected tab
             await SaveSelectedTabIndex();
 
+            //now clear cache
+            await ClearCache();
+
             return RedirectToAction("GeneralCommon");
         }
         [HttpPost, ActionName("GeneralCommon")]
         [FormValueRequired("togglefulltext")]
-        public async Task<IActionResult> ToggleFullText(GeneralCommonSettingsModel model)
+        public async Task<IActionResult> ToggleFullText()
         {
             //https://docs.mongodb.com/manual/reference/text-search-languages/#text-search-languages
             var storeScope = await GetActiveStoreScopeConfiguration(_storeService, _workContext);
@@ -2085,6 +2006,9 @@ namespace Grand.Web.Areas.Admin.Controllers
                     StoreId = string.IsNullOrEmpty(x.StoreId) ? " " : x.StoreId
                 };
                 settings.Add(settingModel);
+
+                //now clear cache
+                await ClearCache();
             }
 
             if (model != null)
@@ -2116,6 +2040,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 SenderId = settings.SenderId,
                 StorageBucket = settings.StorageBucket,
                 PrivateApiKey = settings.PrivateApiKey,
+                AppId = settings.AppId,
                 Enabled = settings.Enabled
             };
 
@@ -2124,7 +2049,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         [HttpPost]
         [IgnoreAntiforgeryToken]
-        public async Task<IActionResult> PushNotifications(DataSourceRequest command, ConfigurationModel model)
+        public async Task<IActionResult> PushNotifications(ConfigurationModel model)
         {
             var storeScope = await GetActiveStoreScopeConfiguration(_storeService, _workContext);
             var settings = _settingService.LoadSetting<PushNotificationsSettings>(storeScope);
@@ -2136,11 +2061,15 @@ namespace Grand.Web.Areas.Admin.Controllers
             settings.SenderId = model.SenderId;
             settings.StorageBucket = model.StorageBucket;
             settings.PrivateApiKey = model.PrivateApiKey;
+            settings.AppId = model.AppId;
             settings.Enabled = model.Enabled;
             await _settingService.SaveSetting(settings);
 
+            //now clear cache
+            await ClearCache();
+
             //edit js file needed by firebase
-            var jsFilePath = CommonHelper.MapPath("~/wwwroot/firebase-messaging-sw.js");
+            var jsFilePath = CommonHelper.WebMapPath("firebase-messaging-sw.js");
             if (System.IO.File.Exists(jsFilePath))
             {
                 string[] lines = System.IO.File.ReadAllLines(jsFilePath);
@@ -2176,6 +2105,11 @@ namespace Grand.Web.Areas.Admin.Controllers
                     if (line.Contains("messagingSenderId"))
                     {
                         lines[i] = "messagingSenderId: \"" + model.SenderId + "\",";
+                    }
+
+                    if (line.Contains("appId"))
+                    {
+                        lines[i] = "appId: \"" + model.AppId + "\",";
                     }
 
                     i++;
@@ -2248,6 +2182,9 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             await _settingService.SaveSetting(settings);
 
+            //now clear cache
+            await ClearCache();
+
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Updated"));
             return await AdminSearch();
         }
@@ -2271,7 +2208,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 return Json(new DataSourceResult { Errors = ModelState.SerializeErrors() });
             }
 
-            var setting = _settingService.GetSettingById(model.Id);
+            var setting = await _settingService.GetSettingById(model.Id);
             if (setting == null)
                 return Content("No setting could be loaded with the specified ID");
 
@@ -2327,7 +2264,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         [IgnoreAntiforgeryToken]
         public async Task<IActionResult> SettingDelete(string id)
         {
-            var setting = _settingService.GetSettingById(id);
+            var setting = await _settingService.GetSettingById(id);
             if (setting == null)
                 throw new ArgumentException("No setting found with the specified id");
             await _settingService.DeleteSetting(setting);

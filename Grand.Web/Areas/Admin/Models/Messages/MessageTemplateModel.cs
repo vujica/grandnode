@@ -1,16 +1,14 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
+﻿using Grand.Framework.Localization;
 using Grand.Framework.Mapping;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Messages;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Grand.Framework.Mvc.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Messages
 {
-    [Validator(typeof(MessageTemplateValidator))]
-    public partial class MessageTemplateModel : BaseGrandEntityModel, ILocalizedModel<MessageTemplateLocalizedModel>, IStoreMappingModel
+    public partial class MessageTemplateModel : BaseEntityModel, ILocalizedModel<MessageTemplateLocalizedModel>, IStoreMappingModel
     {
         public MessageTemplateModel()
         {
@@ -24,23 +22,23 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         public string[] AllowedTokens { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.BccEmailAddresses")]
-        
+
         public string BccEmailAddresses { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.Subject")]
-        
+
         public string Subject { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.Body")]
-        
+
         public string Body { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.IsActive")]
-        
+
         public bool IsActive { get; set; }
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.SendImmediately")]
         public bool SendImmediately { get; set; }
@@ -79,15 +77,15 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.BccEmailAddresses")]
-        
+
         public string BccEmailAddresses { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.Subject")]
-        
+
         public string Subject { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.Body")]
-        
+
         public string Body { get; set; }
 
         [GrandResourceDisplayName("Admin.ContentManagement.MessageTemplates.Fields.EmailAccount")]

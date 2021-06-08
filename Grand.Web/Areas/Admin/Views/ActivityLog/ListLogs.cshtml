@@ -14,7 +14,7 @@
                     @T("Admin.Configuration.ActivityLog.ActivityLog")
                 </div>
                 <div class="actions btn-group btn-group-devided">
-                    <a asp-action="ClearAll" class="btn red">
+                    <a asp-action="ClearAll" class="btn red" onclick="return confirm('@T("Admin.Common.AreYouSure")');">
                         <i class="fa fa-trash-o"></i>
                         @T("Admin.Common.Clear")
                     </a>
@@ -57,7 +57,7 @@
                     </div>
                     <div class="form-actions">
                         <div class="row">
-                            <div class="col-md-offset-3 col-sm-offset-3 col-md-9 col-sm-9">
+                            <div class="offset-md-3 offset-sm-3 col-md-9 col-sm-9">
                                 <button class="btn btn-success filter-submit" id="search-log">
                                     <i class="fa fa-search"></i> @T("Admin.Common.Search")
                                 </button>
@@ -84,7 +84,7 @@
                         data: additionalData
                     },
                     destroy: {
-                        url: "@Html.Raw(Url.Action("AcivityLogDelete", "ActivityLog"))",
+                        url: "@Html.Raw(Url.Action("ActivityLogDelete", "ActivityLog"))",
                         type: "POST",
                         dataType: "json",
                         data: addAntiForgeryToken
@@ -131,7 +131,7 @@
                 field: "CustomerId",
                 title: "@T("Admin.Configuration.ActivityLog.ActivityLog.Fields.Customer")",
                 width: 100,
-                template: '<a href="@Url.Content("~/Admin/Customer/Edit/")#=CustomerId#">#:CustomerEmail#</a>'
+                template: '<a href="@Url.Action("Edit", "Customer")/#=CustomerId#">#:CustomerEmail#</a>'
             }, {
                 field: "IpAddress",
                 title: "@T("Admin.Configuration.ActivityLog.ActivityLog.Fields.IpAddress")"
@@ -170,7 +170,7 @@
             CreatedOnFrom: $('#@Html.FieldIdFor(model => model.CreatedOnFrom)').val(),
             CreatedOnTo: $('#@Html.FieldIdFor(model => model.CreatedOnTo)').val(),
             IpAddress: $('#@Html.FieldIdFor(model => model.IpAddress)').val(),
-            ActivityLogTypeId: $('#ActivityLogTypeId').val()          
+            ActivityLogTypeId: $('#ActivityLogTypeId').val()
         };
         addAntiForgeryToken(data);
         return data;

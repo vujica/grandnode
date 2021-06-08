@@ -1,14 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Messages;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Messages
 {
-    [Validator(typeof(InteractiveFormValidator))]
-    public partial class InteractiveFormModel : BaseGrandEntityModel, ILocalizedModel<InteractiveFormLocalizedModel>
+    public partial class InteractiveFormModel : BaseEntityModel, ILocalizedModel<InteractiveFormLocalizedModel>
     {
         public InteractiveFormModel()
         {
@@ -19,8 +16,10 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         [GrandResourceDisplayName("Admin.Promotions.InteractiveForms.Fields.Name")]
         public string Name { get; set; }
 
+        [GrandResourceDisplayName("Admin.Promotions.InteractiveForms.Fields.SystemName")]
+        public string SystemName { get; set; }
+
         [GrandResourceDisplayName("Admin.Promotions.InteractiveForms.Fields.Body")]
-        
         public string Body { get; set; }
 
         [GrandResourceDisplayName("Admin.Promotions.InteractiveForms.Fields.EmailAccount")]
@@ -42,7 +41,7 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Promotions.InteractiveForms.Fields.Body")]
-        
+
         public string Body { get; set; }
 
     }

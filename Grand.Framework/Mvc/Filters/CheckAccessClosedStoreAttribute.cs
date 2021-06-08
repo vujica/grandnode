@@ -108,7 +108,9 @@ namespace Grand.Framework.Mvc.Filters
                 var actionName = actionDescriptor?.ActionName;
                 var controllerName = actionDescriptor?.ControllerName;
 
-                if (string.IsNullOrEmpty(actionName) || string.IsNullOrEmpty(controllerName))
+                if ((string.IsNullOrEmpty(actionName) || string.IsNullOrEmpty(controllerName)) ||
+                    (controllerName.Equals("Common", StringComparison.OrdinalIgnoreCase) &&
+                    actionName.Equals("StoreClosed", StringComparison.OrdinalIgnoreCase)))
                 {
                     await next();
                     return;
@@ -119,8 +121,11 @@ namespace Grand.Framework.Mvc.Filters
                     actionName.Equals("TopicDetails", StringComparison.OrdinalIgnoreCase))
                 {
                     //get identifiers of topics are accessible when a store is closed
+                    var now = DateTime.UtcNow;
                     var allowedTopicIds = (await _topicService.GetAllTopics(_storeContext.CurrentStore.Id))
-                        .Where(topic => topic.AccessibleWhenStoreClosed).Select(topic => topic.Id);
+                        .Where(t => t.AccessibleWhenStoreClosed &&
+                        (!t.StartDateUtc.HasValue || t.StartDateUtc < now) && (!t.EndDateUtc.HasValue || t.EndDateUtc > now))
+                        .Select(topic => topic.Id);
 
                     //check whether requested topic is allowed
                     var requestedTopicId = context.RouteData.Values["topicId"] as string;

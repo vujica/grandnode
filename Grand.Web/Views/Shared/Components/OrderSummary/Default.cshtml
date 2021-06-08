@@ -73,10 +73,10 @@
                                 @if (Model.IsEditable && Model.IsAllowOnHold)
                                 {
                                     <td class="onhold-cart text-left">
-                                        <label class="custom-control custom-checkbox mb-0 pl-0">
+                                        <label class="custom-control custom-switch mb-0 pl-0">
                                             <input id="checkbox_@item.Id" type="checkbox" checked="@item.IsCart" class="custom-control-input changeshoppingcartitem" 
                                                    data-href="@Url.RouteUrl("ChangeTypeCartItem", new { id = item.Id, status = !item.IsCart })" />
-                                            <span class="custom-control-label ml-4"></span>
+                                            <span class="custom-control-label ml-5"></span>
                                         </label>
                                     </td>                                   
                                 }
@@ -229,9 +229,10 @@
             </div>
             @if (Model.IsEditable)
             {
-                <div class="common-buttons btn-group btn-group-sm mb-3">
-                    <button type="button" onclick="setLocation('@(Url.RouteUrl("ClearCart"))')" class="btn btn-danger d-flex justify-content-center removeAll-cart-button"><span class="mdi mdi-delete-forever-outline pr-1"></span><span class="d-sm-block">@T("shoppingcart.clearcart")</span></button>
-                </div>
+        <div class="common-buttons btn-group btn-group-sm mb-3">
+            <button type="button" onclick="setLocation('@(Url.RouteUrl("ClearCart"))')" class="btn btn-danger d-flex justify-content-center removeAll-cart-button"><span class="mdi mdi-delete-forever-outline pr-1"></span><span class="d-sm-block">@T("shoppingcart.clearcart")</span></button>
+            <button type="button" onclick="setLocation('@(Url.RouteUrl("ContinueShopping"))')" class="btn btn-outline-secondary d-flex justify-content-center continue-shopping-button"><span class="d-sm-block">@T("shoppingcart.continueshopping")</span></button>
+        </div>
             }
             <div class="cart-options">
                 <div class="row">
@@ -256,7 +257,7 @@
                 //of course, you can modify appropriate locales to include VAT info there
                 <div class="tax-shipping-info d-flex justify-content-end mt-2 mb-2">
                     <span class="taxHelper">
-                        @T(inclTax ? "ShoppingCart.TaxShipping.InclTax" : "ShoppingCart.TaxShipping.ExclTax", Url.RouteUrl("Topic", new { SeName = await Html.GetTopicSeName("shippinginfo", Context) }))
+                        @T(inclTax ? "ShoppingCart.TaxShipping.InclTax" : "ShoppingCart.TaxShipping.ExclTax", Url.RouteUrl("Topic", new { SeName = TopicSeNameConstants.Shippinginfo }))
                     </span>
                 </div>
             }
@@ -303,11 +304,11 @@
                                         <span class="custom-control-label"></span>
                                         @if (Model.TermsOfServicePopup)
                                         {
-                                            <span>@T("Checkout.TermsOfService.IAccept")<a class="custom-control-description read pl-1 font-weight-bold" onclick="javascript:OpenWindow('@Url.RouteUrl("TopicPopup", new { SystemName = "conditionsofuse" })', 450, 500, true)">@T("Checkout.TermsOfService.Read")</a></span>
+                                            <span>@T("Checkout.TermsOfService.IAccept")<a class="custom-control-description read pl-1 font-weight-bold" onclick="javascript:OpenWindow('@Url.RouteUrl("TopicPopup", new { SystemName = TopicSeNameConstants.Conditionsofuse })', 450, 500, true)">@T("Checkout.TermsOfService.Read")</a></span>
                                         }
                                         else
                                         {
-                                            <span>@T("Checkout.TermsOfService.IAccept")<a class="custom-control-description read pl-1 font-weight-bold" href="@Url.RouteUrl("Topic", new { SeName = await Html.GetTopicSeName("conditionsofuse", Context) })">@T("Checkout.TermsOfService.Read")</a></span>
+                                            <span>@T("Checkout.TermsOfService.IAccept")<a class="custom-control-description read pl-1 font-weight-bold" href="@Url.RouteUrl("Topic", new { SeName = TopicSeNameConstants.Conditionsofuse })">@T("Checkout.TermsOfService.Read")</a></span>
                                         }
                                     </label>
                                 </div>

@@ -1,6 +1,6 @@
 ﻿using Grand.Domain;
-using Grand.Domain.Data;
 using Grand.Domain.Catalog;
+using Grand.Domain.Data;
 using Grand.Services.Events;
 using MediatR;
 using MongoDB.Driver;
@@ -8,7 +8,6 @@ using MongoDB.Driver.Linq;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-
 
 namespace Grand.Services.Catalog
 {

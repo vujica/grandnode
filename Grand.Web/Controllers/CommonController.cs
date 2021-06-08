@@ -16,13 +16,17 @@ using Grand.Services.Localization;
 using Grand.Services.Media;
 using Grand.Services.Messages;
 using Grand.Services.Stores;
+using Grand.Services.Topics;
 using Grand.Web.Commands.Models.Common;
+using Grand.Web.Commands.Models.Customers;
+using Grand.Web.Events;
 using Grand.Web.Features.Models.Common;
 using Grand.Web.Models.Common;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -69,8 +73,12 @@ namespace Grand.Web.Controllers
             return View();
         }
 
-        //available even when a store is closed
-        [CheckAccessClosedStore(true)]
+        //external authentication error
+        public virtual IActionResult ExternalAuthenticationError(IEnumerable<string> errors)
+        {
+            return View(errors);
+        }
+
         //available even when navigation is not allowed
         [CheckAccessPublicStore(true)]
         public virtual async Task<IActionResult> SetLanguage(
@@ -220,8 +228,16 @@ namespace Grand.Web.Controllers
         //contact us page
         //available even when a store is closed
         [CheckAccessClosedStore(true)]
-        public virtual async Task<IActionResult> ContactUs()
+        public virtual async Task<IActionResult> ContactUs(
+            [FromServices] StoreInformationSettings storeInformationSettings,
+            [FromServices] ITopicService topicService)
         {
+            if (storeInformationSettings.StoreClosed)
+            {
+                var closestoretopic = await topicService.GetTopicBySystemName("ContactUs");
+                if (closestoretopic == null || !closestoretopic.AccessibleWhenStoreClosed)
+                    return RedirectToRoute("StoreClosed");
+            }
             var model = await _mediator.Send(new ContactUsCommand() {
                 Customer = _workContext.CurrentCustomer,
                 Language = _workContext.WorkingLanguage,
@@ -235,35 +251,56 @@ namespace Grand.Web.Controllers
         [ValidateCaptcha]
         //available even when a store is closed
         [CheckAccessClosedStore(true)]
-        public virtual async Task<IActionResult> ContactUsSend(ContactUsModel model, IFormCollection form, bool captchaValid)
+        public virtual async Task<IActionResult> ContactUsSend(
+            [FromServices] StoreInformationSettings storeInformationSettings,
+            [FromServices] ITopicService topicService,
+            ContactUsModel model, IFormCollection form, bool captchaValid)
         {
+            if (storeInformationSettings.StoreClosed)
+            {
+                var closestoretopic = await topicService.GetTopicBySystemName("ContactUs");
+                if (closestoretopic == null || !closestoretopic.AccessibleWhenStoreClosed)
+                    return RedirectToRoute("StoreClosed");
+            }
+
             //validate CAPTCHA
             if (_captchaSettings.Enabled && _captchaSettings.ShowOnContactUsPage && !captchaValid)
             {
                 ModelState.AddModelError("", _captchaSettings.GetWrongCaptchaMessage(_localizationService));
             }
 
-            var result = await _mediator.Send(new ContactUsSendCommand() {
-                CaptchaValid = captchaValid,
-                Form = form,
-                Model = model,
-                Store = _storeContext.CurrentStore
-            });
-
-            if (result.errors.Any())
+            if (ModelState.IsValid)
             {
-                foreach (var item in result.errors)
+                var result = await _mediator.Send(new ContactUsSendCommand() {
+                    CaptchaValid = captchaValid,
+                    Form = form,
+                    Model = model,
+                    Store = _storeContext.CurrentStore
+                });
+
+                if (result.errors.Any())
                 {
-                    ModelState.AddModelError("", item);
+                    foreach (var item in result.errors)
+                    {
+                        ModelState.AddModelError("", item);
+                    }
+                }
+                else
+                {
+                    //notification
+                    await _mediator.Publish(new ContactUsEvent(_workContext.CurrentCustomer, result.model, form));
+
+                    model = result.model;
+                    return View(model);
                 }
             }
-            else
-            {
-                model = result.model;
-                return View(model);
-            }
-
-            model.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnContactUsPage;
+            model = await _mediator.Send(new ContactUsCommand() {
+                Customer = _workContext.CurrentCustomer,
+                Language = _workContext.WorkingLanguage,
+                Store = _storeContext.CurrentStore,
+                Model = model,
+                Form = form
+            });
 
             return View(model);
         }
@@ -283,8 +320,6 @@ namespace Grand.Web.Controllers
             return View(model);
         }
 
-        //available even when a store is closed
-        [CheckAccessClosedStore(true)]
         public virtual async Task<IActionResult> SitemapXml(int? id, string seocode,
             [FromServices] ILanguageService languageService,
             [FromServices] CommonSettings commonSettings)
@@ -332,17 +367,85 @@ namespace Grand.Web.Controllers
         [CheckAccessClosedStore(true)]
         //available even when navigation is not allowed
         [CheckAccessPublicStore(true)]
-        public virtual async Task<IActionResult> EuCookieLawAccept(
+        public virtual async Task<IActionResult> EuCookieLawAccept(bool accept,
             [FromServices] StoreInformationSettings storeInformationSettings,
-            [FromServices] IGenericAttributeService genericAttributeService)
+            [FromServices] IGenericAttributeService genericAttributeService,
+            [FromServices] ICookiePreference cookiePreference)
         {
             if (!storeInformationSettings.DisplayEuCookieLawWarning)
                 //disabled
                 return Json(new { stored = false });
 
-            //save setting
+            //save consentcookies
+            await genericAttributeService.SaveAttribute(_workContext.CurrentCustomer, SystemCustomerAttributeNames.ConsentCookies, "", _storeContext.CurrentStore.Id);
+            var dictionary = new Dictionary<string, bool>();
+            var consentCookies = cookiePreference.GetConsentCookies();
+            foreach (var item in consentCookies.Where(x => x.AllowToDisable))
+            {
+                dictionary.Add(item.SystemName, accept);
+            }
+            if (dictionary.Any())
+                await genericAttributeService.SaveAttribute<Dictionary<string, bool>>(_workContext.CurrentCustomer, SystemCustomerAttributeNames.ConsentCookies, dictionary, _storeContext.CurrentStore.Id);
+
+            //save setting - EuCookieLawAccepted
             await genericAttributeService.SaveAttribute(_workContext.CurrentCustomer, SystemCustomerAttributeNames.EuCookieLawAccepted, true, _storeContext.CurrentStore.Id);
+
             return Json(new { stored = true });
+        }
+
+        [CheckAccessClosedStore(true)]
+        //available even when navigation is not allowed
+        [CheckAccessPublicStore(true)]
+        public virtual async Task<IActionResult> PrivacyPreference([FromServices] StoreInformationSettings
+            storeInformationSettings)
+        {
+            if (!storeInformationSettings.DisplayPrivacyPreference)
+                //disabled
+                return Json(new { html = "" });
+
+            var model = await _mediator.Send(new GetPrivacyPreference() {
+                Customer = _workContext.CurrentCustomer,
+                Store = _storeContext.CurrentStore
+            });
+
+            return Json(new
+            {
+                html = await RenderPartialViewToString(model)
+            });
+        }
+
+        [HttpPost]
+        [CheckAccessClosedStore(true)]
+        //available even when navigation is not allowed
+        [CheckAccessPublicStore(true)]
+        public virtual async Task<IActionResult> PrivacyPreference(IFormCollection form,
+            [FromServices] StoreInformationSettings storeInformationSettings,
+            [FromServices] IGenericAttributeService genericAttributeService,
+            [FromServices] ICookiePreference _cookiePreference)
+        {
+
+            if (!storeInformationSettings.DisplayPrivacyPreference)
+                return Json(new { success = false });
+
+            var consent = "ConsentCookies";
+            await genericAttributeService.SaveAttribute(_workContext.CurrentCustomer, SystemCustomerAttributeNames.ConsentCookies, "", _storeContext.CurrentStore.Id);
+            var selectedConsentCookies = new List<string>();
+            foreach (var item in form)
+            {
+                if (item.Key.StartsWith(consent))
+                    selectedConsentCookies.Add(item.Value);
+            }
+            var dictionary = new Dictionary<string, bool>();
+            var consentCookies = _cookiePreference.GetConsentCookies();
+            foreach (var item in consentCookies)
+            {
+                if (item.AllowToDisable)
+                    dictionary.Add(item.SystemName, selectedConsentCookies.Contains(item.SystemName));
+            }
+
+            await genericAttributeService.SaveAttribute<Dictionary<string, bool>>(_workContext.CurrentCustomer, SystemCustomerAttributeNames.ConsentCookies, dictionary, _storeContext.CurrentStore.Id);
+
+            return Json(new { success = true });
         }
 
         //robots.txt file
@@ -365,6 +468,7 @@ namespace Grand.Web.Controllers
         //store is closed
         //available even when a store is closed
         [CheckAccessClosedStore(true)]
+        [CheckAccessPublicStore(true)]
         public virtual IActionResult StoreClosed() => View();
 
         [HttpPost]
@@ -471,9 +575,26 @@ namespace Grand.Web.Controllers
             var result = await _mediator.Send(new PopupInteractiveCommand() { Form = formCollection });
             return Json(new
             {
-                success = result.Any(),
+                success = !result.Any(),
                 errors = result
             });
+        }
+
+        [HttpPost]
+        //available even when a store is closed
+        [CheckAccessClosedStore(true)]
+        //available even when navigation is not allowed
+        [CheckAccessPublicStore(true)]
+        public virtual async Task<IActionResult> SaveCurrentPosition(
+            LocationModel model,
+            [FromServices] CustomerSettings customerSettings)
+        {
+            if (!customerSettings.GeoEnabled)
+                return Content("");
+
+            await _mediator.Send(new CurrentPositionCommand() { Customer = _workContext.CurrentCustomer, Model = model });
+
+            return Content("");
         }
 
         #endregion

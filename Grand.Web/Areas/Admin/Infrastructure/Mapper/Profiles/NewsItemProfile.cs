@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using Grand.Domain.News;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Services.Seo;
 using Grand.Web.Areas.Admin.Models.News;
 using System.Collections.Generic;
@@ -8,13 +8,13 @@ using System.Linq;
 
 namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
 {
-    public class NewsItemProfile : Profile, IMapperProfile
+    public class NewsItemProfile : Profile, IAutoMapperProfile
     {
         public NewsItemProfile()
         {
             CreateMap<NewsItem, NewsItemModel>()
                 .ForMember(dest => dest.Locales, mo => mo.Ignore())
-                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true, false)))
+                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true)))
                 .ForMember(dest => dest.Comments, mo => mo.Ignore())
                 .ForMember(dest => dest.CreatedOn, mo => mo.Ignore())
                 .ForMember(dest => dest.AvailableStores, mo => mo.Ignore())

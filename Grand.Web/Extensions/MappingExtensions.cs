@@ -2,13 +2,12 @@
 using Grand.Domain.Common;
 using Grand.Domain.Courses;
 using Grand.Domain.Customers;
-using Grand.Domain.Forums;
 using Grand.Domain.Localization;
 using Grand.Domain.Polls;
 using Grand.Domain.Topics;
+using Grand.Services.Helpers;
 using Grand.Services.Localization;
 using Grand.Services.Seo;
-using Grand.Web.Models.Boards;
 using Grand.Web.Models.Catalog;
 using Grand.Web.Models.Common;
 using Grand.Web.Models.Course;
@@ -35,6 +34,7 @@ namespace Grand.Web.Extensions
                 ParentCategoryId = entity.ParentCategoryId,
                 Name = entity.GetLocalized(x => x.Name, language.Id),
                 Description = entity.GetLocalized(x => x.Description, language.Id),
+                BottomDescription = entity.GetLocalized(x => x.BottomDescription, language.Id),
                 MetaKeywords = entity.GetLocalized(x => x.MetaKeywords, language.Id),
                 MetaDescription = entity.GetLocalized(x => x.MetaDescription, language.Id),
                 MetaTitle = entity.GetLocalized(x => x.MetaTitle, language.Id),
@@ -53,11 +53,11 @@ namespace Grand.Web.Extensions
             if (entity == null)
                 return null;
 
-            var model = new ManufacturerModel
-            {
+            var model = new ManufacturerModel {
                 Id = entity.Id,
                 Name = entity.GetLocalized(x => x.Name, language.Id),
                 Description = entity.GetLocalized(x => x.Description, language.Id),
+                BottomDescription = entity.GetLocalized(x => x.BottomDescription, language.Id),
                 MetaKeywords = entity.GetLocalized(x => x.MetaKeywords, language.Id),
                 MetaDescription = entity.GetLocalized(x => x.MetaDescription, language.Id),
                 MetaTitle = entity.GetLocalized(x => x.MetaTitle, language.Id),
@@ -99,7 +99,7 @@ namespace Grand.Web.Extensions
                 Name = entity.GetLocalized(x => x.Name, language.Id)
             };
             model.AlreadyVoted = entity.
-                PollAnswers.Any(x=>x.PollVotingRecords.Any(z => z.CustomerId == customer.Id));
+                PollAnswers.Any(x => x.PollVotingRecords.Any(z => z.CustomerId == customer.Id));
 
             var answers = entity.PollAnswers.OrderBy(x => x.DisplayOrder);
             foreach (var answer in answers)
@@ -118,42 +118,29 @@ namespace Grand.Web.Extensions
             return model;
 
         }
-        
+
         //topic
-        public static TopicModel ToModel(this Topic entity, Language language)
+        public static TopicModel ToModel(this Topic entity, Language language, IDateTimeHelper dateTimeHelper, string password = "")
         {
             var model = new TopicModel {
                 Id = entity.Id,
                 SystemName = entity.SystemName,
                 IncludeInSitemap = entity.IncludeInSitemap,
                 IsPasswordProtected = entity.IsPasswordProtected,
-                Password = entity.Password,
-                Title = entity.IsPasswordProtected ? "" : entity.GetLocalized(x => x.Title, language.Id),
-                Body = entity.IsPasswordProtected ? "" : entity.GetLocalized(x => x.Body, language.Id),
+                Password = (entity.Password == password) ? password : "",
+                Title = entity.IsPasswordProtected && !(entity.Password == password) ? "" : entity.GetLocalized(x => x.Title, language.Id),
+                Body = entity.IsPasswordProtected && !(entity.Password == password) ? "" : entity.GetLocalized(x => x.Body, language.Id),
                 MetaKeywords = entity.GetLocalized(x => x.MetaKeywords, language.Id),
                 MetaDescription = entity.GetLocalized(x => x.MetaDescription, language.Id),
                 MetaTitle = entity.GetLocalized(x => x.MetaTitle, language.Id),
                 SeName = entity.GetSeName(language.Id),
                 TopicTemplateId = entity.TopicTemplateId,
-                Published = entity.Published
+                Published = entity.Published,
+                StartDate = entity.StartDateUtc.HasValue ? dateTimeHelper.ConvertToUserTime(entity.StartDateUtc.Value) : default,
+                EndDate = entity.EndDateUtc.HasValue ? dateTimeHelper.ConvertToUserTime(entity.EndDateUtc.Value) : default
             };
             return model;
 
-        }
-
-        //forum
-        public static ForumRowModel ToModel(this Forum forum)
-        {
-            var forumModel = new ForumRowModel {
-                Id = forum.Id,
-                Name = forum.Name,
-                SeName = forum.GetSeName(),
-                Description = forum.Description,
-                NumTopics = forum.NumTopics,
-                NumPosts = forum.NumPosts,
-                LastPostId = forum.LastPostId,
-            };
-            return forumModel;
         }
 
         public static Address ToEntity(this AddressModel model, bool trimFields = true)
@@ -208,7 +195,7 @@ namespace Grand.Web.Extensions
             destination.ZipPostalCode = model.ZipPostalCode;
             destination.PhoneNumber = model.PhoneNumber;
             destination.FaxNumber = model.FaxNumber;
-            
+
             return destination;
         }
 

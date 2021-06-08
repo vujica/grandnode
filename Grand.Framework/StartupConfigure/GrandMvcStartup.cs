@@ -1,4 +1,4 @@
-﻿using Grand.Core.Infrastructure;
+﻿using Grand.Core;
 using Grand.Framework.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -30,9 +30,6 @@ namespace Grand.Framework.StartupConfigure
 
             //add mediatR
             services.AddMediator();
-
-            //adddetection device
-            services.AddDetectionDevice();
 
             //add and configure MVC feature
             services.AddGrandMvc(configuration);

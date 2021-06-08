@@ -1,11 +1,11 @@
 ﻿using AutoMapper;
 using Grand.Domain.Common;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Web.Areas.Admin.Models.Common;
 
 namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
 {
-    public class AddressProfile : Profile, IMapperProfile
+    public class AddressProfile : Profile, IAutoMapperProfile
     {
         public AddressProfile()
         {
@@ -42,7 +42,7 @@ namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
             CreateMap<AddressModel, Address>()
                 .ForMember(dest => dest.CreatedOnUtc, mo => mo.Ignore())
                 .ForMember(dest => dest.Id, mo => mo.Ignore())
-                .ForMember(dest => dest.CustomAttributes, mo => mo.Ignore());
+                .ForMember(dest => dest.Attributes, mo => mo.Ignore());
 
         }
 

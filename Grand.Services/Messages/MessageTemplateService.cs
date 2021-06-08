@@ -1,9 +1,9 @@
 ﻿using Grand.Core.Caching;
-using Grand.Domain.Data;
+using Grand.Core.Caching.Constants;
 using Grand.Domain.Catalog;
+using Grand.Domain.Data;
 using Grand.Domain.Messages;
 using Grand.Services.Events;
-using Grand.Services.Localization;
 using Grand.Services.Stores;
 using MediatR;
 using MongoDB.Driver;
@@ -17,37 +17,13 @@ namespace Grand.Services.Messages
 {
     public partial class MessageTemplateService : IMessageTemplateService
     {
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : store ID
-        /// </remarks>
-        private const string MESSAGETEMPLATES_ALL_KEY = "Grand.messagetemplate.all-{0}";
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : template name
-        /// {1} : store ID
-        /// </remarks>
-        private const string MESSAGETEMPLATES_BY_NAME_KEY = "Grand.messagetemplate.name-{0}-{1}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string MESSAGETEMPLATES_PATTERN_KEY = "Grand.messagetemplate.";
-
-        #endregion
-
         #region Fields
 
         private readonly IRepository<MessageTemplate> _messageTemplateRepository;
         private readonly IStoreMappingService _storeMappingService;
         private readonly CatalogSettings _catalogSettings;
         private readonly IMediator _mediator;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
 
         #endregion
 
@@ -61,13 +37,13 @@ namespace Grand.Services.Messages
         /// <param name="messageTemplateRepository">Message template repository</param>
         /// <param name="catalogSettings">Catalog settings</param>
         /// <param name="mediator">Mediator</param>
-        public MessageTemplateService(ICacheManager cacheManager,
+        public MessageTemplateService(ICacheBase cacheManager,
             IStoreMappingService storeMappingService,
             IRepository<MessageTemplate> messageTemplateRepository,
             CatalogSettings catalogSettings,
             IMediator mediator)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _storeMappingService = storeMappingService;
             _messageTemplateRepository = messageTemplateRepository;
             _catalogSettings = catalogSettings;
@@ -89,7 +65,7 @@ namespace Grand.Services.Messages
 
             await _messageTemplateRepository.DeleteAsync(messageTemplate);
 
-            await _cacheManager.RemoveByPrefix(MESSAGETEMPLATES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.MESSAGETEMPLATES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityDeleted(messageTemplate);
@@ -106,7 +82,7 @@ namespace Grand.Services.Messages
 
             await _messageTemplateRepository.InsertAsync(messageTemplate);
 
-            await _cacheManager.RemoveByPrefix(MESSAGETEMPLATES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.MESSAGETEMPLATES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityInserted(messageTemplate);
@@ -123,7 +99,7 @@ namespace Grand.Services.Messages
 
             await _messageTemplateRepository.UpdateAsync(messageTemplate);
 
-            await _cacheManager.RemoveByPrefix(MESSAGETEMPLATES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.MESSAGETEMPLATES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityUpdated(messageTemplate);
@@ -150,8 +126,8 @@ namespace Grand.Services.Messages
             if (string.IsNullOrWhiteSpace(messageTemplateName))
                 throw new ArgumentException("messageTemplateName");
 
-            string key = string.Format(MESSAGETEMPLATES_BY_NAME_KEY, messageTemplateName, storeId);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.MESSAGETEMPLATES_BY_NAME_KEY, messageTemplateName, storeId);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var query = _messageTemplateRepository.Table;
 
@@ -179,8 +155,8 @@ namespace Grand.Services.Messages
         /// <returns>Message template list</returns>
         public virtual async Task<IList<MessageTemplate>> GetAllMessageTemplates(string storeId)
         {
-            string key = string.Format(MESSAGETEMPLATES_ALL_KEY, storeId);
-            return await _cacheManager.GetAsync(key, () =>
+            string key = string.Format(CacheKey.MESSAGETEMPLATES_ALL_KEY, storeId);
+            return await _cacheBase.GetAsync(key, () =>
             {
                 var query = _messageTemplateRepository.Table;
 
@@ -208,8 +184,7 @@ namespace Grand.Services.Messages
             if (messageTemplate == null)
                 throw new ArgumentNullException("messageTemplate");
 
-            var mtCopy = new MessageTemplate
-            {
+            var mtCopy = new MessageTemplate {
                 Name = messageTemplate.Name,
                 BccEmailAddresses = messageTemplate.BccEmailAddresses,
                 Subject = messageTemplate.Subject,

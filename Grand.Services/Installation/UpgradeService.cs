@@ -1,10 +1,12 @@
-﻿using Grand.Domain;
-using Grand.Domain.Data;
+﻿using Grand.Core;
+using Grand.Domain;
+using Grand.Domain.Admin;
 using Grand.Domain.AdminSearch;
 using Grand.Domain.Blogs;
 using Grand.Domain.Catalog;
 using Grand.Domain.Common;
 using Grand.Domain.Customers;
+using Grand.Domain.Data;
 using Grand.Domain.Knowledgebase;
 using Grand.Domain.Localization;
 using Grand.Domain.Logging;
@@ -16,6 +18,7 @@ using Grand.Domain.Seo;
 using Grand.Domain.Shipping;
 using Grand.Domain.Tasks;
 using Grand.Domain.Topics;
+using Grand.Services.Admin;
 using Grand.Services.Catalog;
 using Grand.Services.Commands.Models.Security;
 using Grand.Services.Configuration;
@@ -31,12 +34,14 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Grand.Core.Data;
-using Grand.Core;
+using System.Xml;
+
+#pragma warning disable CS0618
 
 namespace Grand.Services.Installation
 {
@@ -56,6 +61,7 @@ namespace Grand.Services.Installation
         private const string version_460 = "4.60";
         private const string version_470 = "4.70";
         private const string version_480 = "4.80";
+        private const string version_490 = "4.90";
 
         #endregion
 
@@ -120,19 +126,23 @@ namespace Grand.Services.Installation
                 await From470To480();
                 fromversion = version_480;
             }
-
+            if (fromversion == version_480)
+            {
+                await From480To490();
+                fromversion = version_490;
+            }
             if (fromversion == toversion)
             {
                 var databaseversion = _versionRepository.Table.FirstOrDefault();
                 if (databaseversion != null)
                 {
-                    databaseversion.DataBaseVersion = GrandVersion.CurrentVersion;
+                    databaseversion.DataBaseVersion = GrandVersion.SupportedDBVersion;
                     await _versionRepository.UpdateAsync(databaseversion);
                 }
                 else
                 {
                     databaseversion = new GrandNodeVersion {
-                        DataBaseVersion = GrandVersion.CurrentVersion
+                        DataBaseVersion = GrandVersion.SupportedDBVersion
                     };
                     await _versionRepository.InsertAsync(databaseversion);
                 }
@@ -142,7 +152,7 @@ namespace Grand.Services.Installation
         private async Task From400To410()
         {
             #region Install String resources
-            await InstallStringResources("EN_400_410.nopres.xml");
+            await InstallStringResources("EN_400_410.xml");
             #endregion
 
             #region Install product reservation
@@ -258,7 +268,7 @@ namespace Grand.Services.Installation
             var _settingService = _serviceProvider.GetRequiredService<ISettingService>();
 
             #region Install String resources
-            await InstallStringResources("EN_410_420.nopres.xml");
+            await InstallStringResources("EN_410_420.xml");
             #endregion
 
             #region Update string resources
@@ -417,7 +427,7 @@ namespace Grand.Services.Installation
         {
             var _settingService = _serviceProvider.GetRequiredService<ISettingService>();
 
-            await InstallStringResources("EN_420_430.nopres.xml");
+            await InstallStringResources("EN_420_430.xml");
 
             #region Settings
 
@@ -595,7 +605,7 @@ namespace Grand.Services.Installation
         private async Task From430To440()
         {
             #region Install String resources
-            await InstallStringResources("430_440.nopres.xml");
+            await InstallStringResources("430_440.xml");
             #endregion
 
             #region Permisions
@@ -619,7 +629,7 @@ namespace Grand.Services.Installation
 
                 await productRepository.Collection.UpdateManyAsync(filter, update);
 
-                tag.SeName = SeoExtensions.GetSeName(tag.Name, false, false);
+                tag.SeName = SeoExtensions.GenerateSlug(tag.Name, false, false);
                 await productTagService.UpdateProductTag(tag);
             }
 
@@ -689,7 +699,7 @@ namespace Grand.Services.Installation
         private async Task From440To450()
         {
             #region Install String resources
-            await InstallStringResources("EN_440_450.nopres.xml");
+            await InstallStringResources("EN_440_450.xml");
             #endregion
 
             #region Update task
@@ -772,7 +782,7 @@ namespace Grand.Services.Installation
 
             #region Install String resources
 
-            await InstallStringResources("EN_450_460.nopres.xml");
+            await InstallStringResources("EN_450_460.xml");
 
             #endregion
 
@@ -904,7 +914,7 @@ namespace Grand.Services.Installation
         private async Task From460To470()
         {
             #region Install String resources
-            await InstallStringResources("EN_460_470.nopres.xml");
+            await InstallStringResources("EN_460_470.xml");
             #endregion
 
             #region MessageTemplates
@@ -953,9 +963,10 @@ namespace Grand.Services.Installation
 
             foreach (var specificationAttribute in specification.Table.ToList())
             {
-                specificationAttribute.SeName = SeoExtensions.GetSeName(specificationAttribute.Name, false, false);
-                specificationAttribute.SpecificationAttributeOptions.ToList().ForEach(x=>{ 
-                    x.SeName = SeoExtensions.GetSeName(x.Name, false, false);
+                specificationAttribute.SeName = SeoExtensions.GenerateSlug(specificationAttribute.Name, false, false);
+                specificationAttribute.SpecificationAttributeOptions.ToList().ForEach(x =>
+                {
+                    x.SeName = SeoExtensions.GenerateSlug(x.Name, false, false);
                 });
                 await specification.UpdateAsync(specificationAttribute);
             }
@@ -967,7 +978,7 @@ namespace Grand.Services.Installation
             var attributes = _serviceProvider.GetRequiredService<IRepository<ProductAttribute>>();
             foreach (var attribute in attributes.Table.ToList())
             {
-                attribute.SeName = SeoExtensions.GetSeName(attribute.Name, false, false);
+                attribute.SeName = SeoExtensions.GenerateSlug(attribute.Name, false, false);
                 await attributes.UpdateAsync(attribute);
             }
 
@@ -979,7 +990,7 @@ namespace Grand.Services.Installation
 
             foreach (var category in blogcategories.Table.ToList())
             {
-                category.SeName = SeoExtensions.GetSeName(category.Name, false, false);
+                category.SeName = SeoExtensions.GenerateSlug(category.Name, false, false);
                 await blogcategories.UpdateAsync(category);
             }
 
@@ -997,8 +1008,442 @@ namespace Grand.Services.Installation
         private async Task From470To480()
         {
             #region Install String resources
-            
-            await InstallStringResources("EN_470_480.nopres.xml");
+
+            await InstallStringResources("EN_470_480.xml");
+
+            #endregion
+
+            #region Update customer settings
+
+            var _settingService = _serviceProvider.GetRequiredService<ISettingService>();
+            var customerSettings = _serviceProvider.GetRequiredService<CustomerSettings>();
+            customerSettings.HideSubAccountsTab = true;
+            await _settingService.SaveSetting(customerSettings);
+
+            #endregion
+
+            #region Update permissions - Actions
+
+            IPermissionProvider provider = new StandardPermissionProvider();
+            //install new permissions
+            await _mediator.Send(new InstallNewPermissionsCommand() { PermissionProvider = provider });
+
+            var permissions = provider.GetPermissions();
+            var permissionService = _serviceProvider.GetRequiredService<IPermissionService>();
+            foreach (var permission in permissions)
+            {
+                var p = await permissionService.GetPermissionRecordBySystemName(permission.SystemName);
+                if (p != null)
+                {
+                    p.Actions = permission.Actions;
+                    await permissionService.UpdatePermissionRecord(p);
+                }
+            }
+
+            #endregion
+
+            #region Update cancel order Scheduled Task
+
+            var tasks = _serviceProvider.GetRequiredService<IRepository<ScheduleTask>>();
+            var cancelOrderTask = new ScheduleTask {
+                ScheduleTaskName = "Cancel unpaid and pending orders",
+                Type = "Grand.Services.Tasks.CancelOrderScheduledTask, Grand.Services",
+                Enabled = false,
+                StopOnError = false,
+                TimeInterval = 1440
+            };
+            await tasks.InsertAsync(cancelOrderTask);
+
+            #endregion
+        }
+
+        private async Task From480To490()
+        {
+            var dBContext = _serviceProvider.GetRequiredService<IMongoDBContext>();
+
+            #region Install String resources
+
+            await InstallStringResources("EN_480_490.xml");
+
+            #endregion
+
+            #region Insert activities
+
+            var _activityLogTypeRepository = _serviceProvider.GetRequiredService<IRepository<ActivityLogType>>();
+            if (!_activityLogTypeRepository.Table.Where(x => x.SystemKeyword == "CustomerAdmin.UpdateCartCustomer").Any())
+            {
+                await _activityLogTypeRepository.InsertAsync(new ActivityLogType() {
+                    SystemKeyword = "CustomerAdmin.UpdateCartCustomer",
+                    Enabled = true,
+                    Name = "Update shopping cart"
+                });
+            }
+            if (!_activityLogTypeRepository.Table.Where(x => x.SystemKeyword == "AddNewSalesEmployee").Any())
+            {
+                await _activityLogTypeRepository.InsertAsync(new ActivityLogType() {
+                    SystemKeyword = "AddNewSalesEmployee",
+                    Enabled = true,
+                    Name = "Add a sales employee"
+                });
+            }
+            if (!_activityLogTypeRepository.Table.Where(x => x.SystemKeyword == "EditSalesEmployee").Any())
+            {
+                await _activityLogTypeRepository.InsertAsync(new ActivityLogType() {
+                    SystemKeyword = "EditSalesEmployee",
+                    Enabled = true,
+                    Name = "Edit a sales employee"
+                });
+            }
+            if (!_activityLogTypeRepository.Table.Where(x => x.SystemKeyword == "DeleteSalesEmployee").Any())
+            {
+                await _activityLogTypeRepository.InsertAsync(new ActivityLogType() {
+                    SystemKeyword = "DeleteSalesEmployee",
+                    Enabled = true,
+                    Name = "Delete a sales employee"
+                });
+            }
+            if (!_activityLogTypeRepository.Table.Where(x => x.SystemKeyword == "AddRewardPoints").Any())
+            {
+                await _activityLogTypeRepository.InsertAsync(new ActivityLogType() {
+                    SystemKeyword = "AddRewardPoints",
+                    Enabled = true,
+                    Name = "Assign new reward points"
+                });
+            }
+            #endregion
+
+            #region Upgrade orders
+
+            var orderRepository = _serviceProvider.GetRequiredService<IRepository<Order>>();
+            var query = orderRepository.Table.Where(x => x.CurrencyRate != 1 && (x.Rate != 1 || x.Rate != 0)).ToList();
+
+            //upgrade Currency value
+            foreach (var order in query)
+            {
+                var rate = order.CurrencyRate;
+                order.Rate = rate;
+
+                if (order.OrderSubtotalInclTax > 0)
+                    order.OrderSubtotalInclTax = Math.Round(order.OrderSubtotalInclTax * rate, 2);
+
+                if (order.OrderSubtotalExclTax > 0)
+                    order.OrderSubtotalExclTax = Math.Round(order.OrderSubtotalExclTax * rate, 2);
+
+                if (order.OrderSubTotalDiscountInclTax > 0)
+                    order.OrderSubTotalDiscountInclTax = Math.Round(order.OrderSubTotalDiscountInclTax * rate, 2);
+
+                if (order.OrderSubTotalDiscountExclTax > 0)
+                    order.OrderSubTotalDiscountExclTax = Math.Round(order.OrderSubTotalDiscountExclTax * rate, 2);
+
+                if (order.OrderShippingInclTax > 0)
+                    order.OrderShippingInclTax = Math.Round(order.OrderShippingInclTax * rate, 2);
+
+                if (order.OrderShippingExclTax > 0)
+                    order.OrderShippingExclTax = Math.Round(order.OrderShippingExclTax * rate, 2);
+
+                if (order.PaymentMethodAdditionalFeeInclTax > 0)
+                    order.PaymentMethodAdditionalFeeInclTax = Math.Round(order.PaymentMethodAdditionalFeeInclTax * rate, 2);
+
+                if (order.PaymentMethodAdditionalFeeExclTax > 0)
+                    order.PaymentMethodAdditionalFeeExclTax = Math.Round(order.PaymentMethodAdditionalFeeExclTax * rate, 2);
+
+                if (order.OrderTax > 0)
+                    order.OrderTax = Math.Round(order.OrderTax * rate, 2);
+
+                if (order.OrderDiscount > 0)
+                    order.OrderDiscount = Math.Round(order.OrderDiscount * rate, 2);
+
+                if (order.OrderTotal > 0)
+                    order.OrderTotal = Math.Round(order.OrderTotal * rate, 2);
+
+                if (order.RefundedAmount > 0)
+                    order.RefundedAmount = Math.Round(order.RefundedAmount * rate, 2);
+
+                foreach (var orderItems in order.OrderItems)
+                {
+                    if (orderItems.UnitPriceWithoutDiscInclTax > 0)
+                        orderItems.UnitPriceWithoutDiscInclTax = Math.Round(orderItems.UnitPriceWithoutDiscInclTax * rate, 2);
+                    if (orderItems.UnitPriceWithoutDiscExclTax > 0)
+                        orderItems.UnitPriceWithoutDiscExclTax = Math.Round(orderItems.UnitPriceWithoutDiscExclTax * rate, 2);
+                    if (orderItems.UnitPriceInclTax > 0)
+                        orderItems.UnitPriceInclTax = Math.Round(orderItems.UnitPriceInclTax * rate, 2);
+                    if (orderItems.UnitPriceExclTax > 0)
+                        orderItems.UnitPriceExclTax = Math.Round(orderItems.UnitPriceExclTax * rate, 2);
+                    if (orderItems.PriceInclTax > 0)
+                        orderItems.PriceInclTax = Math.Round(orderItems.PriceInclTax * rate, 2);
+                    if (orderItems.PriceExclTax > 0)
+                        orderItems.PriceExclTax = Math.Round(orderItems.PriceExclTax * rate, 2);
+                    if (orderItems.DiscountAmountInclTax > 0)
+                        orderItems.DiscountAmountInclTax = Math.Round(orderItems.DiscountAmountInclTax * rate, 2);
+                    if (orderItems.DiscountAmountExclTax > 0)
+                        orderItems.DiscountAmountExclTax = Math.Round(orderItems.DiscountAmountExclTax * rate, 2);
+                }
+
+                await orderRepository.UpdateAsync(order);
+            }
+
+            //upgrade Taxes on the order
+            var orderTaxRepository = dBContext.Database().GetCollection<OldOrders>("Order");
+            await orderTaxRepository.Find(new BsonDocument()).ForEachAsync(async (o) =>
+            {
+                if (!o.OrderTaxes.Any())
+                {
+                    var taxes = o.ParseTaxRates(o.TaxRates);
+                    foreach (var item in taxes)
+                    {
+                        o.OrderTaxes.Add(new OrderTax() {
+                            Percent = item.Key,
+                            Amount = Math.Round(item.Value * o.CurrencyRate, 4)
+                        });
+                    }
+                    await orderTaxRepository.ReplaceOneAsync(x => x.Id == o.Id, o);
+                }
+            });
+
+            #endregion
+
+            #region Insert new system customer role - sales manager
+
+            var crSalesManager = new CustomerRole {
+                Name = "Sales manager",
+                Active = true,
+                IsSystemRole = true,
+                SystemName = SystemCustomerRoleNames.SalesManager,
+            };
+            await _serviceProvider.GetRequiredService<IRepository<CustomerRole>>().InsertAsync(crSalesManager);
+
+            #endregion
+
+            #region Upgrade Git cards - update CurrencyCode
+
+            var pc = await _serviceProvider.GetRequiredService<ICurrencyService>().GetPrimaryStoreCurrency();
+
+            var giftCardsRepository = dBContext.Database().GetCollection<GiftCard>("GiftCard");
+            await giftCardsRepository.Find(new BsonDocument()).ForEachAsync(async (o) =>
+            {
+                o.CurrencyCode = pc.CurrencyCode;
+                await giftCardsRepository.ReplaceOneAsync(x => x.Id == o.Id, o);
+            });
+
+            #endregion
+
+            #region Upgrade Address attributes field / customer attributes
+
+            static List<CustomAttribute> ParseAddressCustomAttributes(string attributesXml)
+            {
+                var customAttribute = new List<CustomAttribute>();
+
+                try
+                {
+                    var xmlDoc = new XmlDocument();
+                    xmlDoc.LoadXml(attributesXml);
+
+                    var nodeList1 = xmlDoc.SelectNodes(@"//Attributes/AddressAttribute");
+                    foreach (XmlNode node1 in nodeList1)
+                    {
+                        if (node1.Attributes != null && node1.Attributes["ID"] != null)
+                        {
+                            var key = node1.Attributes["ID"].InnerText.Trim();
+
+                            var nodeList2 = node1.SelectNodes(@"AddressAttributeValue/Value");
+                            foreach (XmlNode node2 in nodeList2)
+                            {
+                                var value = node2.InnerText.Trim();
+                                customAttribute.Add(new CustomAttribute() { Key = key, Value = value });
+                            }
+                        }
+                    }
+                }
+                catch (Exception exc)
+                {
+                    Debug.Write(exc.ToString());
+                }
+                return customAttribute;
+            }
+
+            static List<CustomAttribute> ParseCustomerCustomAttributes(string attributesXml)
+            {
+                var customAttribute = new List<CustomAttribute>();
+
+                try
+                {
+                    var xmlDoc = new XmlDocument();
+                    xmlDoc.LoadXml(attributesXml);
+
+                    var nodeList1 = xmlDoc.SelectNodes(@"//Attributes/CustomerAttribute");
+                    foreach (XmlNode node1 in nodeList1)
+                    {
+                        if (node1.Attributes != null && node1.Attributes["ID"] != null)
+                        {
+                            var key = node1.Attributes["ID"].InnerText.Trim();
+
+                            var nodeList2 = node1.SelectNodes(@"CustomerAttributeValue/Value");
+                            foreach (XmlNode node2 in nodeList2)
+                            {
+                                var value = node2.InnerText.Trim();
+                                customAttribute.Add(new CustomAttribute() { Key = key, Value = value });
+                            }
+                        }
+                    }
+                }
+                catch (Exception exc)
+                {
+                    Debug.Write(exc.ToString());
+                }
+                return customAttribute;
+            }
+
+            static List<CustomAttribute> ParseProductCustomAttributes(string attributesXml)
+            {
+                var customAttribute = new List<CustomAttribute>();
+
+                try
+                {
+                    var xmlDoc = new XmlDocument();
+                    xmlDoc.LoadXml(attributesXml);
+
+                    var nodeList1 = xmlDoc.SelectNodes(@"//Attributes/ProductAttribute");
+                    foreach (XmlNode node1 in nodeList1)
+                    {
+                        if (node1.Attributes != null && node1.Attributes["ID"] != null)
+                        {
+                            var key = node1.Attributes["ID"].InnerText.Trim();
+
+                            var nodeList2 = node1.SelectNodes(@"ProductAttributeValue/Value");
+                            foreach (XmlNode node2 in nodeList2)
+                            {
+                                var value = node2.InnerText.Trim();
+                                customAttribute.Add(new CustomAttribute() { Key = key, Value = value });
+                            }
+                        }
+                    }
+                }
+                catch (Exception exc)
+                {
+                    Debug.Write(exc.ToString());
+                }
+                return customAttribute;
+            }
+
+            //upgrade customer data - billingaddress/shippingaddress - Addresses
+            var customerRepository = dBContext.Database().GetCollection<Customer>("Customer");
+
+            await customerRepository.Find(new BsonDocument()).ForEachAsync(async (c) =>
+            {
+                var update = false;
+
+                if (!string.IsNullOrEmpty(c.BillingAddress?.CustomAttributes))
+                {
+                    c.BillingAddress.Attributes = ParseAddressCustomAttributes(c.BillingAddress.CustomAttributes);
+                    update = true;
+                }
+
+                if (!string.IsNullOrEmpty(c.ShippingAddress?.CustomAttributes))
+                {
+                    c.ShippingAddress.Attributes = ParseAddressCustomAttributes(c.ShippingAddress.CustomAttributes);
+                    update = true;
+                }
+
+                if (c.Addresses.Where(x => !string.IsNullOrEmpty(x.CustomAttributes)).Any())
+                {
+                    foreach (var address in c.Addresses.Where(x => !string.IsNullOrEmpty(x.CustomAttributes)))
+                    {
+                        address.Attributes = ParseAddressCustomAttributes(address.CustomAttributes);
+                        update = true;
+                    }
+                }
+                if (c.GenericAttributes.Where(x => x.Key == "CustomCustomerAttributes").Any())
+                {
+                    var value = c.GenericAttributes.FirstOrDefault(x => x.Key == "CustomCustomerAttributes").Value;
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        c.Attributes = ParseCustomerCustomAttributes(value);
+                        update = true;
+                    }
+                }
+                if (c.ShoppingCartItems.Where(x => !string.IsNullOrEmpty(x.AttributesXml)).Any())
+                {
+                    foreach (var sc in c.ShoppingCartItems.Where(x => !string.IsNullOrEmpty(x.AttributesXml)))
+                    {
+                        sc.Attributes = ParseProductCustomAttributes(sc.AttributesXml);
+                        update = true;
+                    }
+                }
+                if (update)
+                    await customerRepository.ReplaceOneAsync(x => x.Id == c.Id, c);
+
+            });
+
+            //upgrade order data - billingaddress/shippingaddress - CustomAttributes / AttributeXML for items
+            var orderAttributesRepository = dBContext.Database().GetCollection<Order>("Order");
+            await orderAttributesRepository.Find(new BsonDocument()).ForEachAsync(async (o) =>
+            {
+                if (!string.IsNullOrEmpty(o.BillingAddress?.CustomAttributes) || !string.IsNullOrEmpty(o.ShippingAddress?.CustomAttributes))
+                {
+                    if (!string.IsNullOrEmpty(o.BillingAddress?.CustomAttributes))
+                        o.BillingAddress.Attributes = ParseAddressCustomAttributes(o.BillingAddress.CustomAttributes);
+                    if (!string.IsNullOrEmpty(o.ShippingAddress?.CustomAttributes))
+                        o.ShippingAddress.Attributes = ParseAddressCustomAttributes(o.ShippingAddress.CustomAttributes);
+
+                    await orderAttributesRepository.ReplaceOneAsync(x => x.Id == o.Id, o);
+                }
+                if (o.OrderItems.Where(x => !string.IsNullOrEmpty(x.AttributesXml)).Any())
+                {
+                    foreach (var item in o.OrderItems.Where(x => !string.IsNullOrEmpty(x.AttributesXml)))
+                    {
+                        item.Attributes = ParseProductCustomAttributes(item.AttributesXml);
+                    }
+                    await orderAttributesRepository.ReplaceOneAsync(x => x.Id == o.Id, o);
+                }
+            });
+
+            //update shipment items
+            var shipmentAttributesRepository = dBContext.Database().GetCollection<Shipment>("Shipment");
+            await shipmentAttributesRepository.Find(new BsonDocument()).ForEachAsync(async (o) =>
+            {
+                if (o.ShipmentItems.Where(x => !string.IsNullOrEmpty(x.AttributeXML)).Any())
+                {
+                    foreach (var item in o.ShipmentItems.Where(x => !string.IsNullOrEmpty(x.AttributeXML)))
+                    {
+                        item.Attributes = ParseProductCustomAttributes(item.AttributeXML);
+                    }
+                    await shipmentAttributesRepository.ReplaceOneAsync(x => x.Id == o.Id, o);
+                }
+            });
+
+            //update products
+            var products = _serviceProvider.GetRequiredService<IRepository<Product>>();
+            //combination
+            var productAttributeCombinations = products.Table.Where(x => x.ProductAttributeCombinations.Any()).ToList();
+            foreach (var product in productAttributeCombinations)
+            {
+                foreach (var item in product.ProductAttributeCombinations)
+                {
+                    item.Attributes = ParseProductCustomAttributes(item.AttributesXml);
+                }
+                await products.UpdateAsync(product);
+            }
+            //attributes condition
+            var productAttributeConditions = products.Table.Where(x => x.ProductAttributeMappings.Any()).ToList();
+            foreach (var product in productAttributeConditions)
+            {
+                var update = false;
+                foreach (var item in product.ProductAttributeMappings)
+                {
+                    item.ConditionAttribute = ParseProductCustomAttributes(item.ConditionAttributeXml);
+                    update = true;
+                }
+
+                if(update)
+                    await products.UpdateAsync(product);
+            }
+
+            #endregion
+
+            #region Admin menu
+
+            var adminRepository = _serviceProvider.GetRequiredService<IRepository<AdminSiteMap>>();
+            await adminRepository.InsertManyAsync(StandardAdminSiteMap.SiteMap);
 
             #endregion
         }
@@ -1006,7 +1451,11 @@ namespace Grand.Services.Installation
         private async Task InstallStringResources(string filenames)
         {
             //'English' language            
-            var language = _serviceProvider.GetRequiredService<IRepository<Language>>().Table.Single(l => l.Name == "English");
+            var langRepository = _serviceProvider.GetRequiredService<IRepository<Language>>();
+            var language = langRepository.Table.FirstOrDefault(l => l.Name == "English");
+
+            if (language == null)
+                language = langRepository.Table.FirstOrDefault();
 
             //save resources
             foreach (var filePath in System.IO.Directory.EnumerateFiles(CommonHelper.MapPath("~/App_Data/Localization/Upgrade"), "*" + filenames, SearchOption.TopDirectoryOnly))
@@ -1035,6 +1484,11 @@ namespace Grand.Services.Installation
             public int ReturnRequestStatusId { get; set; }
             public DateTime CreatedOnUtc { get; set; }
             public DateTime UpdatedOnUtc { get; set; }
+        }
+
+        class OldOrders : Order
+        {
+            public string TaxRates { get; set; }
         }
     }
 }

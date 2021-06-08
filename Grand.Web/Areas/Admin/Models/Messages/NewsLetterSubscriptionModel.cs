@@ -1,15 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Messages;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Messages
 {
-    [Validator(typeof(NewsLetterSubscriptionValidator))]
-    public partial class NewsLetterSubscriptionModel : BaseGrandEntityModel
+    public partial class NewsLetterSubscriptionModel : BaseEntityModel
     {
         [GrandResourceDisplayName("Admin.Promotions.NewsLetterSubscriptions.Fields.Email")]
-        
         public string Email { get; set; }
 
         [GrandResourceDisplayName("Admin.Promotions.NewsLetterSubscriptions.Fields.Active")]

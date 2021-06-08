@@ -1,19 +1,19 @@
 ﻿using Grand.Core;
-using Grand.Domain.Catalog;
 using Grand.Domain.Customers;
 using Grand.Domain.Directory;
 using Grand.Domain.Orders;
 using Grand.Domain.Seo;
-using Grand.Services.Catalog;
 using Grand.Services.Customers;
 using Grand.Services.Directory;
 using Grand.Services.Localization;
+using Grand.Services.Logging;
 using Grand.Services.Orders;
+using Grand.Services.Queries.Models.Catalog;
 using Grand.Services.Queries.Models.Orders;
+using Grand.Web.Areas.Admin.Extensions;
 using Grand.Web.Areas.Admin.Models.Home;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +30,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IWorkContext _workContext;
         private readonly IOrderReportService _orderReportService;
         private readonly ICustomerService _customerService;
+        private readonly ILogger _logger;
         private readonly IMediator _mediator;
 
         #endregion
@@ -42,6 +43,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             IWorkContext workContext,
             IOrderReportService orderReportService,
             ICustomerService customerService,
+            ILogger logger,
             IMediator mediator)
         {
             _localizationService = localizationService;
@@ -49,6 +51,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             _workContext = workContext;
             _orderReportService = orderReportService;
             _customerService = customerService;
+            _logger = logger;
             _mediator = mediator;
         }
 
@@ -70,9 +73,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.OrdersPending = (await _orderReportService.GetOrderAverageReportLine(storeId: storeId, os: OrderStatus.Pending)).CountOrders;
             model.AbandonedCarts = (await _customerService.GetAllCustomers(storeId: storeId, loadOnlyWithShoppingCart: true, pageSize: 1)).TotalCount;
 
-            HttpContext.RequestServices.GetRequiredService<IProductService>().GetLowStockProducts(vendorId, storeId, out IList<Product> products, out IList<ProductAttributeCombination> combinations);
-
-            model.LowStockProducts = products.Count + combinations.Count;
+            var lowStockProducts = await _mediator.Send(new GetLowStockProducts() { StoreId = storeId, VendorId = vendorId });
+            model.LowStockProducts = lowStockProducts.products.Count + lowStockProducts.combinations.Count;
 
             model.ReturnRequests = await _mediator.Send(new GetReturnRequestCountQuery() { RequestStatusId = 0, StoreId = storeId });
             model.TodayRegisteredCustomers = (await _customerService.GetAllCustomers(storeId: storeId, customerRoleIds: new string[] { (await _customerService.GetCustomerRoleBySystemName(SystemCustomerRoleNames.Registered)).Id }, createdFromUtc: DateTime.UtcNow.Date, pageSize: 1)).TotalCount;
@@ -121,10 +123,10 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             //home page
             if (String.IsNullOrEmpty(returnUrl))
-                returnUrl = Url.Action("Index", "Home", new { area = "Admin" });
+                returnUrl = Url.Action("Index", "Home", new { area = Constants.AreaAdmin });
             //prevent open redirection attack
             if (!Url.IsLocalUrl(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             return Redirect(returnUrl);
         }
 
@@ -179,6 +181,23 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
             return Json(result);
         }
+
+        public IActionResult AccessDenied(string pageUrl)
+        {
+            var currentCustomer = _workContext.CurrentCustomer;
+            if (currentCustomer == null || currentCustomer.IsGuest())
+            {
+                _logger.Information(string.Format("Access denied to anonymous request on {0}", pageUrl));
+                return View();
+            }
+
+            _logger.Information(string.Format("Access denied to user #{0} '{1}' on {2}", currentCustomer.Email, currentCustomer.Email, pageUrl));
+
+
+            return View();
+        }
+
+
 
         #endregion
     }

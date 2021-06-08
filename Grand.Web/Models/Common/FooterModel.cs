@@ -1,9 +1,9 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 using System.Collections.Generic;
 
 namespace Grand.Web.Models.Common
 {
-    public partial class FooterModel : BaseGrandModel
+    public partial class FooterModel : BaseModel
     {
         public FooterModel()
         {
@@ -23,20 +23,19 @@ namespace Grand.Web.Models.Common
         public string InstagramLink { get; set; }
         public string LinkedInLink { get; set; }
         public string PinterestLink { get; set; }
+        public bool PrivacyPreference { get; set; }
         public bool WishlistEnabled { get; set; }
         public bool ShoppingCartEnabled { get; set; }
         public bool SitemapEnabled { get; set; }
         public bool NewsEnabled { get; set; }
         public bool BlogEnabled { get; set; }
         public bool CompareProductsEnabled { get; set; }
-        public bool ForumEnabled { get; set; }
         public bool RecentlyViewedProductsEnabled { get; set; }
         public bool RecommendedProductsEnabled { get; set; }
         public bool NewProductsEnabled { get; set; }
         public bool AllowCustomersToApplyForVendorAccount { get; set; }
         public bool DisplayTaxShippingInfoFooter { get; set; }
         public bool InclTax { get; set; }
-        public bool HidePoweredByGrandNode { get; set; }
         public bool KnowledgebaseEnabled { get; set; }
 
         public string WorkingLanguageId { get; set; }
@@ -45,7 +44,7 @@ namespace Grand.Web.Models.Common
 
         #region Nested classes
 
-        public class FooterTopicModel : BaseGrandEntityModel
+        public class FooterTopicModel : BaseEntityModel
         {
             public string Name { get; set; }
             public string SeName { get; set; }

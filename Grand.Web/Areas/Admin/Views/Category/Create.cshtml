@@ -3,7 +3,7 @@
     //page title
     ViewBag.Title = T("Admin.Catalog.Categories.AddNew").Text;
 }
-<form asp-area="Admin" asp-controller="Category" asp-action="Create" method="post" id="category-form">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Category" asp-action="Create" method="post" id="category-form">
     
     <div class="row">
         <div class="col-md-12">
@@ -22,7 +22,7 @@
                     </div>
                 </div>
                 <vc:admin-widget widget-zone="category_details_buttons" additional-data="null" />
-                <div class="x_content form k-content">
+                <div class="x_content form">
                     <partial name="_CreateOrUpdate" model="Model" />
                 </div>
             </div>

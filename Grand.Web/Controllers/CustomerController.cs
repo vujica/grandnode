@@ -81,10 +81,9 @@ namespace Grand.Web.Controllers
 
         #region Login / logout
 
-        //available even when a store is closed
-        [CheckAccessClosedStore(true)]
         //available even when navigation is not allowed
         [CheckAccessPublicStore(true)]
+        [CheckAccessClosedStore(true)]
         public virtual IActionResult Login(bool? checkoutAsGuest)
         {
             var model = new LoginModel();
@@ -95,10 +94,9 @@ namespace Grand.Web.Controllers
         }
 
         [HttpPost]
-        //available even when a store is closed
-        [CheckAccessClosedStore(true)]
         //available even when navigation is not allowed
         [CheckAccessPublicStore(true)]
+        [CheckAccessClosedStore(true)]
         [ValidateCaptcha]
         [AutoValidateAntiforgeryToken]
         public virtual async Task<IActionResult> Login(LoginModel model, string returnUrl, bool captchaValid,
@@ -123,14 +121,12 @@ namespace Grand.Web.Controllers
                         {
                             var customer = _customerSettings.UsernamesEnabled ? await _customerService.GetCustomerByUsername(model.Username) : await _customerService.GetCustomerByEmail(model.Email);
                             //sign in
-                            return await SignInAction(shoppingCartService, customer, returnUrl);
+                            return await SignInAction(shoppingCartService, customer, model.RememberMe, returnUrl);
                         }
                     case CustomerLoginResults.RequiresTwoFactor:
                         {
                             var userName = _customerSettings.UsernamesEnabled ? model.Username : model.Email;
-
                             HttpContext.Session.SetString("RequiresTwoFactor", userName);
-
                             return RedirectToRoute("TwoFactorAuthorization");
                         }
 
@@ -227,13 +223,13 @@ namespace Grand.Web.Controllers
             return View();
         }
 
-        protected async Task<IActionResult> SignInAction(IShoppingCartService shoppingCartService, Customer customer, string returnUrl = null)
+        protected async Task<IActionResult> SignInAction(IShoppingCartService shoppingCartService, Customer customer, bool createPersistentCookie = false, string returnUrl = null)
         {
             //migrate shopping cart
             await shoppingCartService.MigrateShoppingCart(_workContext.CurrentCustomer, customer, true);
 
             //sign in new customer
-            await _authenticationService.SignIn(customer, true);
+            await _authenticationService.SignIn(customer, createPersistentCookie);
 
             //raise event       
             await _mediator.Publish(new CustomerLoggedInEvent(customer));
@@ -376,7 +372,7 @@ namespace Grand.Web.Controllers
                 if (response.Success)
                 {
                     await _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.PasswordRecoveryToken, "");
-
+                    
                     model.DisablePasswordChanging = true;
                     model.Result = _localizationService.GetResource("Account.PasswordRecovery.PasswordHasBeenChanged");
                 }
@@ -404,6 +400,12 @@ namespace Grand.Web.Controllers
             if (_customerSettings.UserRegistrationType == UserRegistrationType.Disabled)
                 return RedirectToRoute("RegisterResult", new { resultId = (int)UserRegistrationType.Disabled });
 
+            //check if customer is registered. 
+            if (_workContext.CurrentCustomer.IsRegistered())
+            {
+                return RedirectToRoute("HomePage");
+            }
+
             var model = await _mediator.Send(new GetRegister() {
                 Customer = _workContext.CurrentCustomer,
                 ExcludeProperties = false,
@@ -416,7 +418,6 @@ namespace Grand.Web.Controllers
 
         [HttpPost]
         [ValidateCaptcha]
-        [ValidateHoneypot]
         [AutoValidateAntiforgeryToken]
         //available even when navigation is not allowed
         [CheckAccessPublicStore(true)]
@@ -427,17 +428,15 @@ namespace Grand.Web.Controllers
             if (_customerSettings.UserRegistrationType == UserRegistrationType.Disabled)
                 return RedirectToRoute("RegisterResult", new { resultId = (int)UserRegistrationType.Disabled });
 
+            //check if customer is registered. 
             if (_workContext.CurrentCustomer.IsRegistered())
             {
-                //Already registered customer. 
-                await _authenticationService.SignOut();
-
-                //Save a new record
-                _workContext.CurrentCustomer = await _customerService.InsertGuestCustomer(_storeContext.CurrentStore);
+                return RedirectToRoute("HomePage");
             }
+
             //custom customer attributes
-            var customerAttributesXml = await _mediator.Send(new GetParseCustomAttributes() { Form = form });
-            var customerAttributeWarnings = await customerAttributeParser.GetAttributeWarnings(customerAttributesXml);
+            var customerAttributes = await _mediator.Send(new GetParseCustomAttributes() { Form = form });
+            var customerAttributeWarnings = await customerAttributeParser.GetAttributeWarnings(customerAttributes);
             foreach (var error in customerAttributeWarnings)
             {
                 ModelState.AddModelError("", error);
@@ -465,7 +464,7 @@ namespace Grand.Web.Controllers
                 {
                     await _mediator.Send(new CustomerRegisteredCommand() {
                         Customer = _workContext.CurrentCustomer,
-                        CustomerAttributesXml = customerAttributesXml,
+                        CustomerAttributes = customerAttributes,
                         Form = form,
                         Model = model,
                         Store = _storeContext.CurrentStore
@@ -524,7 +523,7 @@ namespace Grand.Web.Controllers
                 Language = _workContext.WorkingLanguage,
                 Store = _storeContext.CurrentStore,
                 Model = model,
-                OverrideCustomCustomerAttributesXml = customerAttributesXml
+                OverrideCustomCustomerAttributes = customerAttributes
             });
 
             return View(model);
@@ -644,8 +643,8 @@ namespace Grand.Web.Controllers
                 return Challenge();
 
             //custom customer attributes
-            var customerAttributesXml = await _mediator.Send(new GetParseCustomAttributes() { Form = form });
-            var customerAttributeWarnings = await customerAttributeParser.GetAttributeWarnings(customerAttributesXml);
+            var customerAttributes = await _mediator.Send(new GetParseCustomAttributes() { Form = form });
+            var customerAttributeWarnings = await customerAttributeParser.GetAttributeWarnings(customerAttributes);
 
             foreach (var error in customerAttributeWarnings)
             {
@@ -658,7 +657,7 @@ namespace Grand.Web.Controllers
                 {
                     await _mediator.Send(new UpdateCustomerInfoCommand() {
                         Customer = _workContext.CurrentCustomer,
-                        CustomerAttributesXml = customerAttributesXml,
+                        CustomerAttributes = customerAttributes,
                         Form = form,
                         Model = model,
                         OriginalCustomerIfImpersonated = _workContext.OriginalCustomerIfImpersonated,
@@ -679,7 +678,7 @@ namespace Grand.Web.Controllers
                 ExcludeProperties = true,
                 Language = _workContext.WorkingLanguage,
                 Store = _storeContext.CurrentStore,
-                OverrideCustomCustomerAttributesXml = customerAttributesXml
+                OverrideCustomCustomerAttributes = customerAttributes
             });
 
             return View(model);
@@ -808,7 +807,7 @@ namespace Grand.Web.Controllers
             if (ModelState.IsValid && ModelState.ErrorCount == 0)
             {
                 var address = model.Address.ToEntity();
-                address.CustomAttributes = customAttributes;
+                address.Attributes = customAttributes;
                 address.CreatedOnUtc = DateTime.UtcNow;
                 customer.Addresses.Add(address);
                 address.CustomerId = customer.Id;
@@ -883,7 +882,7 @@ namespace Grand.Web.Controllers
             if (ModelState.IsValid && ModelState.ErrorCount == 0)
             {
                 address = model.Address.ToEntity(address);
-                address.CustomAttributes = customAttributes;
+                address.Attributes = customAttributes;
                 address.CustomerId = customer.Id;
                 await _customerService.UpdateAddress(address);
 
@@ -920,7 +919,7 @@ namespace Grand.Web.Controllers
             if (_customerSettings.HideDownloadableProductsTab)
                 return RedirectToRoute("CustomerInfo");
 
-            var model = await _mediator.Send(new GetDownloadableProducts() { Customer = _workContext.CurrentCustomer, Language = _workContext.WorkingLanguage });
+            var model = await _mediator.Send(new GetDownloadableProducts() { Customer = _workContext.CurrentCustomer, Store = _storeContext.CurrentStore, Language = _workContext.WorkingLanguage });
             return View(model);
         }
 
@@ -967,6 +966,9 @@ namespace Grand.Web.Controllers
                 var changePasswordResult = await _customerRegistrationService.ChangePassword(changePasswordRequest);
                 if (changePasswordResult.Success)
                 {
+                    //sign in
+                    await _authenticationService.SignIn(customer, true);
+
                     model.Result = _localizationService.GetResource("Account.ChangePassword.Success");
                     return View(model);
                 }
@@ -1052,84 +1054,6 @@ namespace Grand.Web.Controllers
 
         #endregion
 
-        #region My account / Avatar
-
-        public virtual async Task<IActionResult> Avatar()
-        {
-            if (!_workContext.CurrentCustomer.IsRegistered())
-                return Challenge();
-
-            if (!_customerSettings.AllowCustomersToUploadAvatars)
-                return RedirectToRoute("CustomerInfo");
-
-            var model = await _mediator.Send(new GetAvatar() { Customer = _workContext.CurrentCustomer });
-
-            return View(model);
-        }
-
-        [HttpPost, ActionName("Avatar")]
-        [AutoValidateAntiforgeryToken]
-        [FormValueRequired("upload-avatar")]
-        public virtual async Task<IActionResult> UploadAvatar(CustomerAvatarModel model, IFormFile uploadedFile)
-        {
-            if (!_workContext.CurrentCustomer.IsRegistered())
-                return Challenge();
-
-            if (!_customerSettings.AllowCustomersToUploadAvatars)
-                return RedirectToRoute("CustomerInfo");
-
-            var contentType = uploadedFile?.ContentType;
-            if (string.IsNullOrEmpty(contentType))
-                ModelState.AddModelError("", "Empty content type");
-            else
-                if (!contentType.StartsWith("image"))
-                ModelState.AddModelError("", "Only image content type is allowed");
-
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    await _mediator.Send(new UploadAvatarCommand() { Customer = _workContext.CurrentCustomer, UploadedFile = uploadedFile });
-
-                    model = await _mediator.Send(new GetAvatar() { Customer = _workContext.CurrentCustomer });
-                    return View(model);
-                }
-                catch (Exception exc)
-                {
-                    ModelState.AddModelError("", exc.Message);
-                }
-            }
-
-            //If we got this far, something failed, redisplay form
-            model = await _mediator.Send(new GetAvatar() { Customer = _workContext.CurrentCustomer });
-
-            return View(model);
-        }
-        private bool ValidContentType(IFormFile uploadedFile)
-        {
-            return true;
-
-        }
-
-
-        [HttpPost, ActionName("Avatar")]
-        [AutoValidateAntiforgeryToken]
-        [FormValueRequired("remove-avatar")]
-        public virtual async Task<IActionResult> RemoveAvatar(CustomerAvatarModel model)
-        {
-            if (!_workContext.CurrentCustomer.IsRegistered())
-                return Challenge();
-
-            if (!_customerSettings.AllowCustomersToUploadAvatars)
-                return RedirectToRoute("CustomerInfo");
-
-            await _mediator.Send(new UploadAvatarCommand() { Customer = _workContext.CurrentCustomer, Remove = true });
-
-            return RedirectToRoute("CustomerAvatar");
-        }
-
-        #endregion
-
         #region My account / Auctions
 
         public virtual async Task<IActionResult> Auctions()
@@ -1166,7 +1090,7 @@ namespace Grand.Web.Controllers
 
         #region My account / Documents
 
-        public virtual async Task<IActionResult> Documents()
+        public virtual async Task<IActionResult> Documents(DocumentPagingModel command)
         {
             if (!_workContext.CurrentCustomer.IsRegistered())
                 return Challenge();
@@ -1174,7 +1098,10 @@ namespace Grand.Web.Controllers
             if (_customerSettings.HideDocumentsTab)
                 return RedirectToRoute("CustomerInfo");
 
-            var model = await _mediator.Send(new GetDocuments() { Customer = _workContext.CurrentCustomer, Language = _workContext.WorkingLanguage });
+            var model = await _mediator.Send(new GetDocuments() { 
+                Customer = _workContext.CurrentCustomer, 
+                Language = _workContext.WorkingLanguage, 
+                Command = command });
 
             return View(model);
         }
@@ -1293,5 +1220,159 @@ namespace Grand.Web.Controllers
         }
 
         #endregion
+
+        #region My account / Sub accounts
+
+        public virtual async Task<IActionResult> SubAccounts()
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            if (_customerSettings.HideSubAccountsTab)
+                return RedirectToRoute("CustomerInfo");
+
+            var model = await _mediator.Send(new GetSubAccounts() { Customer = _workContext.CurrentCustomer });
+
+            return View(model);
+        }
+
+        public virtual IActionResult SubAccountAdd()
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            var model = new SubAccountModel() {
+                Active = true,
+            };
+            return View(model);
+        }
+
+        [HttpPost]
+        [AutoValidateAntiforgeryToken]
+        public virtual async Task<IActionResult> SubAccountAdd(SubAccountModel model, IFormCollection form)
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new SubAccountAddCommand() {
+                    Customer = _workContext.CurrentCustomer,
+                    Model = model,
+                    Form = form,
+                    Store = _storeContext.CurrentStore
+                });
+
+                if (result.Success)
+                {
+                    return RedirectToRoute("CustomerSubAccounts");
+                }
+
+                //errors
+                foreach (var error in result.Errors)
+                    ModelState.AddModelError("", error);
+            }
+
+            //If we got this far, something failed, redisplay form
+            return View(model);
+        }
+
+        public virtual async Task<IActionResult> SubAccountEdit(string id)
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            var model = await _mediator.Send(new GetSubAccount() { CustomerId = id, CurrentCustomer = _workContext.CurrentCustomer });
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [AutoValidateAntiforgeryToken]
+        public virtual async Task<IActionResult> SubAccountEdit(SubAccountModel model, IFormCollection form)
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new SubAccountEditCommand() {
+                    CurrentCustomer = _workContext.CurrentCustomer,
+                    Model = model,
+                    Form = form,
+                    Store = _storeContext.CurrentStore
+                });
+
+                if (result.success)
+                {
+                    return RedirectToRoute("CustomerSubAccounts");
+                }
+
+                //errors
+                ModelState.AddModelError("", result.error);
+            }
+
+            //If we got this far, something failed, redisplay form
+            return View(model);
+        }
+
+        [HttpPost]
+        [AutoValidateAntiforgeryToken]
+        public virtual async Task<IActionResult> SubAccountDelete(string id)
+        {
+            if (!_workContext.CurrentCustomer.IsRegistered())
+                return Challenge();
+
+            if (!_workContext.CurrentCustomer.IsOwner())
+                return Challenge();
+
+            //find address (ensure that it belongs to the current customer)
+            if (ModelState.IsValid)
+            {
+                var result = await _mediator.Send(new SubAccountDeleteCommand() {
+                    CurrentCustomer = _workContext.CurrentCustomer,
+                    CustomerId = id,
+                });
+
+                if (result.success)
+                {
+                    return Json(new
+                    {
+                        redirect = Url.RouteUrl("CustomerSubAccounts"),
+                        success = true,
+                    });
+                }
+
+                //errors
+                ModelState.AddModelError("", result.error);
+            }
+            return Json(new
+            {
+                redirect = Url.RouteUrl("CustomerSubAccounts"),
+                success = false,
+                error = string.Join("; ", ModelState.Values
+                                        .SelectMany(x => x.Errors)
+                                        .Select(x => x.ErrorMessage))
+            });
+        }
+
+
+        #endregion
+
     }
 }

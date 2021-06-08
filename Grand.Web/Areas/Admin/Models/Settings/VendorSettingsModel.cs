@@ -1,9 +1,9 @@
-﻿using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    public partial class VendorSettingsModel : BaseGrandModel
+    public partial class VendorSettingsModel : BaseModel
     {
 
         public VendorSettingsModel()
@@ -54,6 +54,9 @@ namespace Grand.Web.Areas.Admin.Models.Settings
         public bool AllowAnonymousUsersToReviewVendor { get; set; }
         public bool AllowAnonymousUsersToReviewVendor_OverrideForStore { get; set; }
 
+        [GrandResourceDisplayName("Admin.Configuration.Settings.Vendor.DefaultAdminTheme")]
+        public string DefaultAdminTheme { get; set; }
+
         [GrandResourceDisplayName("Admin.Configuration.Settings.Vendor.VendorReviewPossibleOnlyAfterPurchasing")]
         public bool VendorReviewPossibleOnlyAfterPurchasing { get; set; }
         public bool VendorReviewPossibleOnlyAfterPurchasing_OverrideForStore { get; set; }
@@ -66,7 +69,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
 
         #region Nested classes
 
-        public partial class AddressSettingsModel : BaseGrandModel
+        public partial class AddressSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.Vendor.AddressFormFields.CompanyEnabled")]
             public bool CompanyEnabled { get; set; }

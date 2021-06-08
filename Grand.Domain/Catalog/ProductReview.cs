@@ -50,6 +50,11 @@ namespace Grand.Domain.Catalog
         public string Signature { get; set; }
 
         /// <summary>
+        /// Gets or sets the review was confirmed by purchased
+        /// </summary>
+        public bool ConfirmedPurchase { get; set; }
+
+        /// <summary>
         /// Review rating
         /// </summary>
         public int Rating { get; set; }
@@ -79,7 +84,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductReviewHelpfulness> ProductReviewHelpfulnessEntries
         {
-            get { return _productReviewHelpfulnessEntries ?? (_productReviewHelpfulnessEntries = new List<ProductReviewHelpfulness>()); }
+            get { return _productReviewHelpfulnessEntries ??= new List<ProductReviewHelpfulness>(); }
             protected set { _productReviewHelpfulnessEntries = value; }
         }
     }

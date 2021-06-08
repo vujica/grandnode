@@ -29,33 +29,21 @@ namespace Grand.Web.Controllers
         #region Fields
 
         private readonly GrandConfig _config;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IServiceProvider _serviceProvider;
         private readonly IMediator _mediator;
         #endregion
 
         #region Ctor
 
-        public InstallController(GrandConfig config, ICacheManager cacheManager,
+        public InstallController(GrandConfig config, ICacheBase cacheManager,
             IServiceProvider serviceProvider, IMediator mediator)
         {
             _config = config;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _serviceProvider = serviceProvider;
             _mediator = mediator;
         }
-
-        #endregion
-
-        #region Utilities
-
-        /// <summary>
-        /// A value indicating whether we use MARS (Multiple Active Result Sets)
-        /// </summary>
-        protected bool UseMars {
-            get { return false; }
-        }
-
 
         #endregion
 
@@ -68,7 +56,7 @@ namespace Grand.Web.Controllers
 
             var locService = _serviceProvider.GetRequiredService<IInstallationLocalizationService>();
 
-            var installed = await _cacheManager.GetAsync("Installed", async () => { return await Task.FromResult(false); });
+            var installed = await _cacheBase.GetAsync("Installed", async () => { return await Task.FromResult(false); });
             if (installed)
                 return View(new InstallModel() { Installed = true });
 
@@ -187,7 +175,7 @@ namespace Grand.Web.Controllers
                         DataProvider = "mongodb",
                         DataConnectionString = connectionString
                     };
-                    settingsManager.SaveSettings(settings);
+                    await settingsManager.SaveSettings(settings);
 
                     // set the connectionstring in Settings.txt
                     var dataProviderInstance = _serviceProvider.GetRequiredService<BaseDataProviderManager>().LoadDataProvider();
@@ -201,7 +189,7 @@ namespace Grand.Web.Controllers
                     {
                         // (1) create collections in database and (2) create the admin user with the password and (3) create the sample data if necessary
                         var installationService = _serviceProvider.GetRequiredService<IInstallationService>();
-                        await installationService.InstallData(model.AdminEmail, model.AdminPassword, model.Collation, model.InstallSampleData);
+                        await installationService.InstallData(model.AdminEmail, model.AdminPassword, model.Collation, model.InstallSampleData, model.CompanyName, model.CompanyAddress, model.CompanyPhoneNumber, model.CompanyEmail);
                     }
                     
                     //reset cache
@@ -216,18 +204,8 @@ namespace Grand.Web.Controllers
                         .ThenBy(x => x.PluginDescriptor.DisplayOrder)
                         .ToList();
 
-                    var pluginsIgnoredDuringInstallation = String.IsNullOrEmpty(_config.PluginsIgnoredDuringInstallation) ?
-                        new List<string>() :
-                        _config.PluginsIgnoredDuringInstallation
-                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(x => x.Trim())
-                        .ToList();
-
                     foreach (var plugin in plugins)
                     {
-                        if (pluginsIgnoredDuringInstallation.Contains(plugin.PluginDescriptor.SystemName))
-                            continue;
-
                         try
                         {
                             await plugin.Install();
@@ -253,14 +231,14 @@ namespace Grand.Web.Controllers
                     }
 
                     //restart application
-                    await _cacheManager.SetAsync("Installed", true, 120);
+                    await _cacheBase.SetAsync("Installed", true, 120);
                     return View(new InstallModel() { Installed = true });
                 }
                 catch (Exception exception)
                 {
                     //reset cache
                     DataSettingsHelper.ResetCache();
-                    await _cacheManager.Clear();
+                    await _cacheBase.Clear();
 
                     System.IO.File.Delete(CommonHelper.MapPath("~/App_Data/Settings.txt"));
 
@@ -310,7 +288,7 @@ namespace Grand.Web.Controllers
 
             //restart application
             var webHelper = _serviceProvider.GetRequiredService<IWebHelper>();
-            webHelper.RestartAppDomain();
+            webHelper.StopApplication();
 
             //Redirect to home page
             return RedirectToRoute("HomePage");

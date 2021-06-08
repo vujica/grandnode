@@ -17,6 +17,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using MediatR;
+using Grand.Services.Commands.Models.Customers;
 
 namespace Grand.Web.Areas.Admin.Controllers
 {
@@ -28,6 +30,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly ILocalizationService _localizationService;
         private readonly IVendorService _vendorService;
         private readonly ILanguageService _languageService;
+        private readonly IMediator _mediator;
         #endregion
 
         #region Constructors
@@ -36,12 +39,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             IVendorViewModelService vendorViewModelService,
             ILocalizationService localizationService,
             IVendorService vendorService,
-            ILanguageService languageService)
+            ILanguageService languageService,
+            IMediator mediator)
         {
             _vendorViewModelService = vendorViewModelService;
             _localizationService = localizationService;
             _vendorService = vendorService;
             _languageService = languageService;
+            _mediator = mediator;
         }
 
         #endregion
@@ -57,12 +62,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> List(DataSourceRequest command, VendorListModel model)
         {
             var vendors = await _vendorService.GetAllVendors(model.SearchName, command.Page - 1, command.PageSize, true);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = vendors.Select(x =>
                 {
                     var vendorModel = x.ToModel();
@@ -74,6 +79,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //create
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = await _vendorViewModelService.PrepareVendorModel();
@@ -82,6 +88,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         public async Task<IActionResult> Create(VendorModel model, bool continueEditing)
@@ -105,6 +112,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
 
         //edit
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var vendor = await _vendorService.GetVendorById(id);
@@ -121,7 +129,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 locale.MetaKeywords = vendor.GetLocalized(x => x.MetaKeywords, languageId, false, false);
                 locale.MetaDescription = vendor.GetLocalized(x => x.MetaDescription, languageId, false, false);
                 locale.MetaTitle = vendor.GetLocalized(x => x.MetaTitle, languageId, false, false);
-                locale.SeName = vendor.GetSeName(languageId, false, false);
+                locale.SeName = vendor.GetSeName(languageId, false);
             });
             //discounts
             await _vendorViewModelService.PrepareDiscountModel(model, vendor, false);
@@ -135,6 +143,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> Edit(VendorModel model, bool continueEditing)
         {
@@ -142,7 +151,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (vendor == null || vendor.Deleted)
                 //No vendor found with the specified id
                 return RedirectToAction("List");
-            
+
             if (ModelState.IsValid)
             {
                 vendor = await _vendorViewModelService.UpdateVendorModel(vendor, model);
@@ -171,7 +180,39 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
+        [HttpPost, ActionName("Edit")]
+        [FormValueRequired("activatevendor", "deactivatevendor")]
+        public async Task<IActionResult> Activate(string id, string activatevendor)
+        {
+            var vendor = await _vendorService.GetVendorById(id);
+            if (vendor == null || vendor.Deleted)
+                //No vendor found with the specified id
+                return RedirectToAction("List");
+
+            var associatedCustomers = await _vendorViewModelService.AssociatedCustomers(vendor.Id);
+            if (!associatedCustomers.Any())
+            {
+                ErrorNotification(_localizationService.GetResource("Admin.Vendors.Fields.AssociatedCustomerEmails.None"));
+                return RedirectToAction("Edit", new { id = vendor.Id });
+            }
+
+            var activate = await _mediator.Send(new ActiveVendorCommand() {
+                Vendor = vendor,
+                Active = activatevendor == "active",
+                CustomerIds = associatedCustomers.Select(x => x.Id).ToList()
+            });
+
+            if (activate)
+                SuccessNotification(_localizationService.GetResource("Admin.Vendors.Updated"));
+
+            return RedirectToAction("Edit", new { id = vendor.Id });
+
+        }
+
         //delete
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
@@ -194,6 +235,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Vendor notes
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> VendorNotesSelect(string vendorId, DataSourceRequest command)
         {
@@ -202,8 +244,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 throw new ArgumentException("No vendor found with the specified id");
 
             var vendorNoteModels = _vendorViewModelService.PrepareVendorNote(vendor);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = vendorNoteModels,
                 Total = vendorNoteModels.Count
             };
@@ -211,6 +252,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> VendorNoteAdd(string vendorId, string message)
         {
             if (ModelState.IsValid)
@@ -221,6 +263,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return ErrorForKendoGridJson(ModelState);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> VendorNoteDelete(string id, string vendorId)
         {
@@ -236,6 +279,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Reviews
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> Reviews(DataSourceRequest command, string vendorId, [FromServices] IWorkContext workContext)
         {
@@ -256,8 +300,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 await _vendorViewModelService.PrepareVendorReviewModel(m, item, false, true);
                 items.Add(m);
             }
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = items,
                 Total = vendorReviews.TotalCount,
             };

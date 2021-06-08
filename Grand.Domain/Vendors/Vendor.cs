@@ -1,6 +1,7 @@
 using Grand.Domain.Common;
 using Grand.Domain.Localization;
 using Grand.Domain.Seo;
+using MongoDB.Driver.GeoJsonObjectModel;
 using System.Collections.Generic;
 
 namespace Grand.Domain.Vendors
@@ -126,13 +127,17 @@ namespace Grand.Domain.Vendors
         /// <summary>
         /// Gets or sets the commission rate
         /// </summary>
-        public decimal Commission { get; set; }
+        public decimal? Commission { get; set; }
 
         /// <summary>
         /// Gets or sets the vendor address
         /// </summary>
         public virtual Address Address { get; set; }
 
+        /// <summary>
+        /// Gets or sets the coordinates
+        /// </summary>
+        public GeoJson2DCoordinates Coordinates { get; set; }
 
         /// <summary>
         /// Gets or sets the collection of locales
@@ -143,7 +148,7 @@ namespace Grand.Domain.Vendors
         /// </summary>
         public virtual ICollection<VendorNote> VendorNotes
         {
-            get { return _vendorNotes ?? (_vendorNotes = new List<VendorNote>()); }
+            get { return _vendorNotes ??= new List<VendorNote>(); }
             protected set { _vendorNotes = value; }
         }
         /// <summary>
@@ -151,7 +156,7 @@ namespace Grand.Domain.Vendors
         /// </summary>
         public virtual ICollection<string> AppliedDiscounts
         {
-            get { return _appliedDiscounts ?? (_appliedDiscounts = new List<string>()); }
+            get { return _appliedDiscounts ??= new List<string>(); }
             protected set { _appliedDiscounts = value; }
         }
 

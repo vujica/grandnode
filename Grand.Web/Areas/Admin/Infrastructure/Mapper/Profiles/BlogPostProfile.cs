@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using Grand.Domain.Blogs;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Services.Seo;
 using Grand.Web.Areas.Admin.Models.Blogs;
 using System.Collections.Generic;
@@ -8,13 +8,13 @@ using System.Linq;
 
 namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
 {
-    public class BlogPostProfile : Profile, IMapperProfile
+    public class BlogPostProfile : Profile, IAutoMapperProfile
     {
         public BlogPostProfile()
         {
             CreateMap<BlogPost, BlogPostModel>()
                 .ForMember(dest => dest.Locales, mo => mo.Ignore())
-                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true, false)))
+                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true)))
                 .ForMember(dest => dest.Comments, mo => mo.Ignore())
                 .ForMember(dest => dest.CreatedOn, mo => mo.Ignore())
                 .ForMember(dest => dest.AvailableStores, mo => mo.Ignore())

@@ -1,5 +1,6 @@
 using Grand.Domain.Common;
 using Grand.Domain.Orders;
+using MongoDB.Driver.GeoJsonObjectModel;
 using System;
 using System.Collections.Generic;
 
@@ -20,8 +21,9 @@ namespace Grand.Domain.Customers
         /// </summary>
         public Customer()
         {
-            this.CustomerGuid = Guid.NewGuid();
-            this.PasswordFormat = PasswordFormat.Clear;
+            CustomerGuid = Guid.NewGuid();
+            PasswordFormat = PasswordFormat.Clear;
+            Attributes = new List<CustomAttribute>();
         }
 
         /// <summary>
@@ -52,7 +54,7 @@ namespace Grand.Domain.Customers
         public PasswordFormat PasswordFormat
         {
             get { return (PasswordFormat)PasswordFormatId; }
-            set { this.PasswordFormatId = (int)value; }
+            set { PasswordFormatId = (int)value; }
         }
         /// <summary>
         /// Gets or sets the password salt
@@ -100,6 +102,16 @@ namespace Grand.Domain.Customers
         public string OwnerId { get; set; }
 
         /// <summary>
+        /// Gets or sets the sales employee identifier 
+        /// </summary>
+        public string SeId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the custom attributes (see "CustomerAttribute" entity for more info)
+        /// </summary>
+        public IList<CustomAttribute> Attributes { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the customer is active
         /// </summary>
         public bool Active { get; set; }
@@ -137,11 +149,6 @@ namespace Grand.Domain.Customers
         /// Gets or sets the last IP address
         /// </summary>
         public string LastIpAddress { get; set; }
-
-        /// <summary>
-        /// Gets or sets the source Url Referrer
-        /// </summary>
-        public string UrlReferrer { get; set; }
 
         /// <summary>
         /// Gets or sets the date and time of entity creation
@@ -185,7 +192,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<CustomerRole> CustomerRoles
         {
-            get { return _customerRoles ?? (_customerRoles = new List<CustomerRole>()); }
+            get { return _customerRoles ??= new List<CustomerRole>(); }
             protected set { _customerRoles = value; }
         }
 
@@ -194,7 +201,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<ShoppingCartItem> ShoppingCartItems
         {
-            get { return _shoppingCartItems ?? (_shoppingCartItems = new List<ShoppingCartItem>()); }
+            get { return _shoppingCartItems ??= new List<ShoppingCartItem>(); }
             protected set { _shoppingCartItems = value; }            
         }
 
@@ -209,11 +216,16 @@ namespace Grand.Domain.Customers
         public virtual Address ShippingAddress { get; set; }
 
         /// <summary>
+        /// Gets or sets the coordinates
+        /// </summary>
+        public GeoJson2DCoordinates Coordinates { get; set; }
+        
+        /// <summary>
         /// Gets or sets customer addresses
         /// </summary>
         public virtual ICollection<Address> Addresses
         {
-            get { return _addresses ?? (_addresses = new List<Address>()); }
+            get { return _addresses ??= new List<Address>(); }
             protected set { _addresses = value; }            
         }
 
@@ -222,7 +234,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<string> CustomerTags
         {
-            get { return _customerTags ?? (_customerTags = new List<string>()); }
+            get { return _customerTags ??= new List<string>(); }
             protected set { _customerTags = value; }
         }
         #endregion

@@ -1,12 +1,9 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Validators.Catalog;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Models.Catalog
 {
-    [Validator(typeof(ProductEmailAFriendValidator))]
-    public partial class ProductEmailAFriendModel : BaseGrandModel
+    public partial class ProductEmailAFriendModel : BaseModel
     {
         public string ProductId { get; set; }
 

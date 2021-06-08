@@ -1,9 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Grand.Domain.Common
 {
     public partial class Address : BaseEntity
     {
+        public Address()
+        {
+            Attributes = new List<CustomAttribute>();
+        }
+
         public string CustomerId { get; set; }
 
         /// <summary>
@@ -74,34 +80,14 @@ namespace Grand.Domain.Common
         /// <summary>
         /// Gets or sets the custom attributes (see "AddressAttribute" entity for more info)
         /// </summary>
+        public IList<CustomAttribute> Attributes { get; set; }
+
+        [Obsolete("Will be removed in version 5.0.0 - this field was replaced by Attributes")] 
         public string CustomAttributes { get; set; }
 
         /// <summary>
         /// Gets or sets the date and time of instance creation
         /// </summary>
         public DateTime CreatedOnUtc { get; set; }
-        
-        public object Clone()
-        {
-            var addr = new Address
-            {
-                FirstName = this.FirstName,
-                LastName = this.LastName,
-                Email = this.Email,
-                Company = this.Company,
-                VatNumber = this.VatNumber,
-                CountryId = this.CountryId,
-                StateProvinceId = this.StateProvinceId,
-                City = this.City,
-                Address1 = this.Address1,
-                Address2 = this.Address2,
-                ZipPostalCode = this.ZipPostalCode,
-                PhoneNumber = this.PhoneNumber,
-                FaxNumber = this.FaxNumber,
-                CustomAttributes = this.CustomAttributes,
-                CreatedOnUtc = this.CreatedOnUtc,
-            };
-            return addr;
-        }
     }
 }

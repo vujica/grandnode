@@ -1,12 +1,9 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 using Grand.Web.Areas.Admin.Models.Common;
-using Grand.Web.Areas.Admin.Validators.Customers;
 
 namespace Grand.Web.Areas.Admin.Models.Customers
 {
-    [Validator(typeof(CustomerAddressValidator))]
-    public partial class CustomerAddressModel : BaseGrandModel
+    public partial class CustomerAddressModel : BaseModel
     {
         public string CustomerId { get; set; }
 

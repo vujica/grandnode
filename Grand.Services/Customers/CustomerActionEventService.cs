@@ -11,19 +11,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Customers
 {
     public partial class CustomerActionEventService : ICustomerActionEventService
     {
         #region Fields
-        private const string CUSTOMER_ACTION_TYPE = "Grand.customer.action.type";
 
         private readonly IRepository<CustomerAction> _customerActionRepository;
         private readonly IRepository<CustomerActionHistory> _customerActionHistoryRepository;
         private readonly IRepository<CustomerActionType> _customerActionTypeRepository;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IMediator _mediator;
+
         #endregion
 
         #region Ctor
@@ -32,13 +33,13 @@ namespace Grand.Services.Customers
             IRepository<CustomerAction> customerActionRepository,
             IRepository<CustomerActionType> customerActionTypeRepository,
             IRepository<CustomerActionHistory> customerActionHistoryRepository,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             IMediator mediator)
         {
             _customerActionRepository = customerActionRepository;
             _customerActionTypeRepository = customerActionTypeRepository;
             _customerActionHistoryRepository = customerActionHistoryRepository;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _mediator = mediator;
         }
 
@@ -48,7 +49,7 @@ namespace Grand.Services.Customers
 
         protected async Task<IList<CustomerActionType>> GetAllCustomerActionType()
         {
-            return await _cacheManager.GetAsync(CUSTOMER_ACTION_TYPE, () =>
+            return await _cacheBase.GetAsync(CacheKey.CUSTOMER_ACTION_TYPE, () =>
             {
                 return _customerActionTypeRepository.Table.ToListAsync();
             });
@@ -89,7 +90,7 @@ namespace Grand.Services.Customers
                             CustomerActionTypes = actiontypes,
                             Action = item,
                             ProductId = product.Id,
-                            AttributesXml = cart.AttributesXml,
+                            Attributes = cart.Attributes,
                             CustomerId = customer.Id
                         }))
                         {
@@ -125,16 +126,17 @@ namespace Grand.Services.Customers
                         {
                             if (await _mediator.Send(new CustomerActionEventConditionCommand() {
                                 CustomerActionTypes = actiontypes,
+                                Action = item,
                                 ProductId = orderItem.ProductId,
                                 CustomerId = order.CustomerId,
-                                AttributesXml = orderItem.AttributesXml
+                                Attributes = orderItem.Attributes
                             }))
                             {
                                 await _mediator.Send(new CustomerActionEventReactionCommand() {
                                     CustomerActionTypes = actiontypes,
                                     Action = item,
                                     Order = order,
-                                    CustomerId = order.CustomerId
+                                    CustomerId = order.CustomerId,
                                 });
                                 break;
                             }

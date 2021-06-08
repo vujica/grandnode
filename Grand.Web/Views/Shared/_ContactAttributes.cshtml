@@ -7,7 +7,7 @@
 @if (Model.Any())
 {
     var attributeChangeScriptsBuilder = new StringBuilder();
-    <div class="contact-attributes">
+    <div class="form-group contact-attributes">
         @foreach (var attribute in Model)
         {
             string controlId = string.Format("contact_attribute_{0}", attribute.Id);
@@ -119,8 +119,9 @@
                             }
 
                             //register CSS and JS
-                            Html.AddCssFileParts("~/scripts/fineuploader/fineuploader-4.2.2.min.css");
-                            Html.AddScriptParts(ResourceLocation.Footer, "~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js");
+                            @inject IPageHeadBuilder pagebuilder
+                            pagebuilder.AddCssFileParts(ResourceLocation.Head, "~/scripts/fineuploader/fineuploader-4.2.2.min.css");
+                            pagebuilder.AddScriptParts(ResourceLocation.Footer, "~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js");
 
                             //ex. ['jpg', 'jpeg', 'png', 'gif'] or []
                             var allowedFileExtensions = string.Join(", ", attribute.AllowedFileExtensions.Select(x => "'" + x.Trim() + "'").ToList());

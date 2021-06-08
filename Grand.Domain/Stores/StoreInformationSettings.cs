@@ -5,10 +5,6 @@ namespace Grand.Domain.Stores
     public class StoreInformationSettings : ISettings
     {
         /// <summary>
-        /// Gets or sets a value indicating whether "GrandNode.com Powered by nopCommerce" text should be displayed.
-        /// </summary>
-        public bool HidePoweredByGrandNode { get; set; }
-        /// <summary>
         /// Gets or sets a value indicating whether store is closed
         /// </summary>
         public bool StoreClosed { get; set; }
@@ -24,6 +20,11 @@ namespace Grand.Domain.Stores
         public bool AllowCustomerToSelectTheme { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether customers are allowed to select a admin theme
+        /// </summary>
+        public bool AllowToSelectAdminTheme { get; set; }
+
+        /// <summary>
         /// Gets or sets a picture identifier of the logo. If 0, then the default one will be used
         /// </summary>
         public string LogoPictureId { get; set; }
@@ -31,6 +32,11 @@ namespace Grand.Domain.Stores
         /// Gets or sets a value indicating whether we should display warnings about the new EU cookie law
         /// </summary>
         public bool DisplayEuCookieLawWarning { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether we should display privacy preference
+        /// </summary>
+        public bool DisplayPrivacyPreference { get; set; }
 
         /// <summary>
         /// Gets or sets a value of Facebook page URL of the site

@@ -1,5 +1,6 @@
 ﻿using Grand.Core;
 using Grand.Domain.Catalog;
+using Grand.Domain.Common;
 using Grand.Domain.Customers;
 using Grand.Domain.Media;
 using Grand.Domain.Orders;
@@ -105,7 +106,7 @@ namespace Grand.Web.Controllers
         {
             var cart = _shoppingCartService.GetShoppingCart(_storeContext.CurrentStore.Id, ShoppingCartType.ShoppingCart, ShoppingCartType.Auctions);
 
-            var attributeXml = await _mediator.Send(new SaveCheckoutAttributesCommand() {
+            var checkoutAttributes = await _mediator.Send(new SaveCheckoutAttributesCommand() {
                 Customer = _workContext.CurrentCustomer,
                 Store = _storeContext.CurrentStore,
                 Cart = cart,
@@ -117,7 +118,7 @@ namespace Grand.Web.Controllers
             var attributes = await _checkoutAttributeService.GetAllCheckoutAttributes(_storeContext.CurrentStore.Id, !cart.RequiresShipping());
             foreach (var attribute in attributes)
             {
-                var conditionMet = await checkoutAttributeParser.IsConditionMet(attribute, attributeXml);
+                var conditionMet = await checkoutAttributeParser.IsConditionMet(attribute, checkoutAttributes);
                 if (conditionMet.HasValue)
                 {
                     if (conditionMet.Value)
@@ -141,7 +142,8 @@ namespace Grand.Web.Controllers
                 enabledattributeids = enabledAttributeIds.ToArray(),
                 disabledattributeids = disabledAttributeIds.ToArray(),
                 htmlordertotal = await RenderPartialViewToString("Components/OrderTotals/Default", model),
-                checkoutattributeinfo = await checkoutAttributeFormatter.FormatAttributes(attributeXml, _workContext.CurrentCustomer),
+                model = model,
+                checkoutattributeinfo = await checkoutAttributeFormatter.FormatAttributes(checkoutAttributes, _workContext.CurrentCustomer),
             });
         }
 
@@ -269,7 +271,7 @@ namespace Grand.Web.Controllers
                         if (int.TryParse(form[formKey], out int newQuantity))
                         {
                             var currSciWarnings = await _shoppingCartService.UpdateShoppingCartItem(_workContext.CurrentCustomer,
-                                sci.Id, sci.WarehouseId, sci.AttributesXml, sci.CustomerEnteredPrice,
+                                sci.Id, sci.WarehouseId, sci.Attributes, sci.EnteredPrice,
                                 sci.RentalStartDateUtc, sci.RentalEndDateUtc,
                                 newQuantity, true, sci.ReservationId, sci.Id);
                             innerWarnings.Add(sci.Id, currSciWarnings);
@@ -277,9 +279,6 @@ namespace Grand.Web.Controllers
                         break;
                     }
             }
-
-            //updated cart
-            _workContext.CurrentCustomer = await _customerService.GetCustomerById(_workContext.CurrentCustomer.Id);
 
             cart = _shoppingCartService.GetShoppingCart(_storeContext.CurrentStore.Id, PrepareCartTypes());
 
@@ -308,7 +307,8 @@ namespace Grand.Web.Controllers
             return Json(new
             {
                 totalproducts = string.Format(_localizationService.GetResource("ShoppingCart.HeaderQuantity"), model.Items.Sum(x => x.Quantity)),
-                cart = this.RenderViewComponentToString("OrderSummary", new { overriddenModel = model })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model }),
+                model = model
             });
         }
 
@@ -347,7 +347,7 @@ namespace Grand.Web.Controllers
                 await _shoppingCartService.DeleteShoppingCartItem(_workContext.CurrentCustomer, item, ensureOnlyActiveCheckoutAttributes: true);
             }
 
-            var model = await _mediator.Send(new GetMiniShoppingCart() {
+            var miniShoppingCartmodel = await _mediator.Send(new GetMiniShoppingCart() {
                 Customer = _workContext.CurrentCustomer,
                 Currency = _workContext.WorkingCurrency,
                 Language = _workContext.WorkingLanguage,
@@ -358,8 +358,9 @@ namespace Grand.Web.Controllers
             {
                 return Json(new
                 {
-                    totalproducts = string.Format(_localizationService.GetResource("ShoppingCart.HeaderQuantity"), model.TotalProducts),
-                    flyoutshoppingcart = this.RenderViewComponentToString("FlyoutShoppingCart", model)
+                    totalproducts = string.Format(_localizationService.GetResource("ShoppingCart.HeaderQuantity"), miniShoppingCartmodel.TotalProducts),
+                    flyoutshoppingcart = this.RenderViewComponentToString("FlyoutShoppingCart", miniShoppingCartmodel),
+                    flyoutshoppingcartmodel = miniShoppingCartmodel,
                 });
             }
             else
@@ -376,9 +377,11 @@ namespace Grand.Web.Controllers
 
                 return Json(new
                 {
-                    totalproducts = string.Format(_localizationService.GetResource("ShoppingCart.HeaderQuantity"), model.TotalProducts),
-                    flyoutshoppingcart = RenderViewComponentToString("FlyoutShoppingCart", model),
-                    cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = shoppingcartmodel })
+                    totalproducts = string.Format(_localizationService.GetResource("ShoppingCart.HeaderQuantity"), miniShoppingCartmodel.TotalProducts),
+                    flyoutshoppingcart = RenderViewComponentToString("FlyoutShoppingCart", miniShoppingCartmodel),
+                    flyoutshoppingcartmodel = miniShoppingCartmodel,
+                    cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = shoppingcartmodel }),
+                    model = shoppingcartmodel,
                 });
             }
         }
@@ -406,7 +409,7 @@ namespace Grand.Web.Controllers
                 await _customerService.UpdateShoppingCartItem(_workContext.CurrentCustomer.Id, item);
             }
 
-            var model = await _mediator.Send(new GetMiniShoppingCart() {
+            var miniShoppingCart = await _mediator.Send(new GetMiniShoppingCart() {
                 Customer = _workContext.CurrentCustomer,
                 Currency = _workContext.WorkingCurrency,
                 Language = _workContext.WorkingLanguage,
@@ -426,7 +429,9 @@ namespace Grand.Web.Controllers
 
             return Json(new
             {
-                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = shoppingcartmodel })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = shoppingcartmodel }),
+                model = shoppingcartmodel,
+                flyoutshoppingcartmodel = miniShoppingCart
             });
 
         }
@@ -447,20 +452,20 @@ namespace Grand.Web.Controllers
         public virtual async Task<IActionResult> StartCheckout(IFormCollection form = null)
         {
             var cart = _shoppingCartService.GetShoppingCart(_storeContext.CurrentStore.Id, ShoppingCartType.ShoppingCart, ShoppingCartType.Auctions);
-            string checkoutAttributes;
+            var checkoutAttributes = new List<CustomAttribute>();
             //parse and save checkout attributes
             if (form != null && form.Count > 0)
             {
-                checkoutAttributes = await _mediator.Send(new SaveCheckoutAttributesCommand() {
+                checkoutAttributes = (await _mediator.Send(new SaveCheckoutAttributesCommand() {
                     Customer = _workContext.CurrentCustomer,
                     Store = _storeContext.CurrentStore,
                     Cart = cart,
                     Form = form
-                });
+                })).ToList();
             }
             else
             {
-                checkoutAttributes = _workContext.CurrentCustomer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.CheckoutAttributes, _storeContext.CurrentStore.Id);
+                checkoutAttributes = _workContext.CurrentCustomer.GetAttributeFromEntity<List<CustomAttribute>>(SystemCustomerAttributeNames.CheckoutAttributes, _storeContext.CurrentStore.Id);
             }
 
             var checkoutAttributeWarnings = await _shoppingCartService.GetShoppingCartWarnings(cart, checkoutAttributes, true);
@@ -575,7 +580,8 @@ namespace Grand.Web.Controllers
 
             return Json(new
             {
-                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model }),
+                model = model
             });
         }
 
@@ -597,7 +603,7 @@ namespace Grand.Web.Controllers
                 if (!string.IsNullOrWhiteSpace(giftcardcouponcode))
                 {
                     var giftCard = (await _mediator.Send(new GetGiftCardQuery() { GiftCardCouponCode = giftcardcouponcode, IsGiftCardActivated = true })).FirstOrDefault();
-                    bool isGiftCardValid = giftCard != null && giftCard.IsGiftCardValid();
+                    bool isGiftCardValid = giftCard != null && giftCard.IsGiftCardValid(_workContext.WorkingCurrency);
                     if (isGiftCardValid)
                     {
                         var result = _workContext.CurrentCustomer.ApplyCouponCode(SystemCustomerAttributeNames.GiftCardCoupons, giftcardcouponcode.Trim().ToLower());
@@ -639,7 +645,8 @@ namespace Grand.Web.Controllers
 
             return Json(new
             {
-                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model }),
+                model = model
             });
         }
 
@@ -694,7 +701,8 @@ namespace Grand.Web.Controllers
 
             return Json(new
             {
-                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model }),
+                model = model
             });
         }
 
@@ -725,7 +733,8 @@ namespace Grand.Web.Controllers
 
             return Json(new
             {
-                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model })
+                cart = RenderViewComponentToString("OrderSummary", new { overriddenModel = model }),
+                model = model
             });
 
         }
@@ -794,7 +803,7 @@ namespace Grand.Web.Controllers
                             if (int.TryParse(form[formKey], out int newQuantity))
                             {
                                 var currSciWarnings = await _shoppingCartService.UpdateShoppingCartItem(_workContext.CurrentCustomer,
-                                    sci.Id, sci.WarehouseId, sci.AttributesXml, sci.CustomerEnteredPrice,
+                                    sci.Id, sci.WarehouseId, sci.Attributes, sci.EnteredPrice,
                                     sci.RentalStartDateUtc, sci.RentalEndDateUtc,
                                     newQuantity, true);
                                 innerWarnings.Add(sci.Id, currSciWarnings);
@@ -803,9 +812,6 @@ namespace Grand.Web.Controllers
                         }
                 }
             }
-
-            //updated wishlist
-            _workContext.CurrentCustomer = await _customerService.GetCustomerById(customer.Id);
 
             cart = _shoppingCartService.GetShoppingCart(_storeContext.CurrentStore.Id, ShoppingCartType.Wishlist);
             var model = await _mediator.Send(new GetWishlist() {
@@ -866,7 +872,7 @@ namespace Grand.Web.Controllers
                     var warnings = await _shoppingCartService.AddToCart(_workContext.CurrentCustomer,
                         sci.ProductId, ShoppingCartType.ShoppingCart,
                         _storeContext.CurrentStore.Id, sci.WarehouseId,
-                        sci.AttributesXml, sci.CustomerEnteredPrice,
+                        sci.Attributes, sci.EnteredPrice,
                         sci.RentalStartDateUtc, sci.RentalEndDateUtc, sci.Quantity, true);
                     if (!warnings.Any())
                         numberOfAddedItems++;
@@ -964,7 +970,7 @@ namespace Grand.Web.Controllers
                 //email
                 await workflowMessageService.SendWishlistEmailAFriendMessage(_workContext.CurrentCustomer, _storeContext.CurrentStore,
                         _workContext.WorkingLanguage.Id, model.YourEmailAddress,
-                        model.FriendEmail, Core.Html.HtmlHelper.FormatText(model.PersonalMessage, false, true, false, false, false, false));
+                        model.FriendEmail, FormatText.ConvertText(model.PersonalMessage));
 
                 model.SuccessfullySent = true;
                 model.Result = _localizationService.GetResource("Wishlist.EmailAFriend.SuccessfullySent");

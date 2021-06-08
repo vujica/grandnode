@@ -1,13 +1,15 @@
 using Grand.Core;
 using Grand.Domain.Catalog;
+using Grand.Domain.Common;
 using Grand.Domain.Customers;
-using Grand.Core.Html;
 using Grand.Services.Catalog;
+using Grand.Services.Common;
 using Grand.Services.Directory;
 using Grand.Services.Localization;
 using Grand.Services.Media;
 using Grand.Services.Tax;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -48,42 +50,45 @@ namespace Grand.Services.Orders
         /// <summary>
         /// Formats attributes
         /// </summary>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="customAttributes">Attributes</param>
         /// <returns>Attributes</returns>
-        public virtual async Task<string> FormatAttributes(string attributesXml)
+        public virtual async Task<string> FormatAttributes(IList<CustomAttribute> customAttributes)
         {
             var customer = _workContext.CurrentCustomer;
-            return await FormatAttributes(attributesXml, customer);
+            return await FormatAttributes(customAttributes, customer);
         }
 
         /// <summary>
         /// Formats attributes
         /// </summary>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="customAttributes">Attributes</param>
         /// <param name="customer">Customer</param>
         /// <param name="serapator">Serapator</param>
         /// <param name="htmlEncode">A value indicating whether to encode (HTML) values</param>
         /// <param name="renderPrices">A value indicating whether to render prices</param>
         /// <param name="allowHyperlinks">A value indicating whether to HTML hyperink tags could be rendered (if required)</param>
         /// <returns>Attributes</returns>
-        public virtual async Task<string> FormatAttributes(string attributesXml,
-            Customer customer, 
-            string serapator = "<br />", 
-            bool htmlEncode = true, 
+        public virtual async Task<string> FormatAttributes(IList<CustomAttribute> customAttributes,
+            Customer customer,
+            string serapator = "<br />",
+            bool htmlEncode = true,
             bool renderPrices = true,
             bool allowHyperlinks = true)
         {
             var result = new StringBuilder();
 
-            var attributes = await _checkoutAttributeParser.ParseCheckoutAttributes(attributesXml);
+            if (customAttributes == null || !customAttributes.Any())
+                return result.ToString();
+
+            var attributes = await _checkoutAttributeParser.ParseCheckoutAttributes(customAttributes);
             for (int i = 0; i < attributes.Count; i++)
             {
                 var attribute = attributes[i];
-                var valuesStr = _checkoutAttributeParser.ParseValues(attributesXml, attribute.Id);
-                for (int j = 0; j < valuesStr.Count; j++)
+                var valuesStr = customAttributes.Where(x => x.Key == attribute.Id).Select(x => x.Value).ToList();
+                for (var j = 0; j < valuesStr.Count; j++)
                 {
-                    string valueStr = valuesStr[j];
-                    string formattedAttribute = "";
+                    var valueStr = valuesStr[j];
+                    var formattedAttribute = "";
                     if (!attribute.ShouldHaveValues())
                     {
                         //no values
@@ -94,7 +99,7 @@ namespace Grand.Services.Orders
                             //encode (if required)
                             if (htmlEncode)
                                 attributeName = WebUtility.HtmlEncode(attributeName);
-                            formattedAttribute = string.Format("{0}: {1}", attributeName, HtmlHelper.FormatText(valueStr, false, true, false, false, false, false));
+                            formattedAttribute = string.Format("{0}: {1}", attributeName, FormatText.ConvertText(valueStr));
                             //we never encode multiline textbox input
                         }
                         else if (attribute.AttributeControlType == AttributeControlType.FileUpload)
@@ -142,24 +147,24 @@ namespace Grand.Services.Orders
                     }
                     else
                     {
-                            var attributeValue = attribute.CheckoutAttributeValues.Where(x => x.Id == valueStr).FirstOrDefault(); 
-                            if (attributeValue != null)
+                        var attributeValue = attribute.CheckoutAttributeValues.Where(x => x.Id == valueStr).FirstOrDefault();
+                        if (attributeValue != null)
+                        {
+                            formattedAttribute = string.Format("{0}: {1}", attribute.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), attributeValue.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id));
+                            if (renderPrices)
                             {
-                                formattedAttribute = string.Format("{0}: {1}", attribute.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), attributeValue.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id));
-                                if (renderPrices)
+                                decimal priceAdjustmentBase = (await _taxService.GetCheckoutAttributePrice(attribute, attributeValue, customer)).checkoutPrice;
+                                decimal priceAdjustment = await _currencyService.ConvertFromPrimaryStoreCurrency(priceAdjustmentBase, _workContext.WorkingCurrency);
+                                if (priceAdjustmentBase > 0)
                                 {
-                                    decimal priceAdjustmentBase = (await _taxService.GetCheckoutAttributePrice(attribute, attributeValue, customer)).checkoutPrice;
-                                    decimal priceAdjustment = await _currencyService.ConvertFromPrimaryStoreCurrency(priceAdjustmentBase, _workContext.WorkingCurrency);
-                                    if (priceAdjustmentBase > 0)
-                                    {
-                                        string priceAdjustmentStr = _priceFormatter.FormatPrice(priceAdjustment);
-                                        formattedAttribute += string.Format(" [+{0}]", priceAdjustmentStr);
-                                    }
+                                    string priceAdjustmentStr = _priceFormatter.FormatPrice(priceAdjustment);
+                                    formattedAttribute += string.Format(" [+{0}]", priceAdjustmentStr);
                                 }
                             }
-                            //encode (if required)
-                            if (htmlEncode)
-                                formattedAttribute = WebUtility.HtmlEncode(formattedAttribute);
+                        }
+                        //encode (if required)
+                        if (htmlEncode)
+                            formattedAttribute = WebUtility.HtmlEncode(formattedAttribute);
                     }
 
                     if (!String.IsNullOrEmpty(formattedAttribute))

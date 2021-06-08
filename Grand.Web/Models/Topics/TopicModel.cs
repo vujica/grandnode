@@ -1,8 +1,9 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
+using System;
 
 namespace Grand.Web.Models.Topics
 {
-    public partial class TopicModel : BaseGrandEntityModel
+    public partial class TopicModel : BaseEntityModel
     {
         public string SystemName { get; set; }
 
@@ -27,5 +28,7 @@ namespace Grand.Web.Models.Topics
         public string TopicTemplateId { get; set; }
 
         public bool Published { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
     }
 }

@@ -1,23 +1,18 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Vendors;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System;
 
 namespace Grand.Web.Areas.Admin.Models.Vendors
 {
-    [Validator(typeof(VendorReviewValidator))]
-    public partial class VendorReviewModel : BaseGrandEntityModel
+    public partial class VendorReviewModel : BaseEntityModel
     {
         [GrandResourceDisplayName("Admin.VendorReviews.Fields.Vendor")]
         public string VendorId { get; set; }
         [GrandResourceDisplayName("Admin.VendorReviews.Fields.Vendor")]
         public string VendorName { get; set; }
 
-        public string Ids
-        {
-            get
-            {
+        public string Ids {
+            get {
                 return Id.ToString() + ":" + VendorId;
             }
         }

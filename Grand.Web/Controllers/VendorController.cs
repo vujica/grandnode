@@ -8,6 +8,7 @@ using Grand.Domain.Vendors;
 using Grand.Framework.Controllers;
 using Grand.Framework.Mvc.Filters;
 using Grand.Framework.Security.Captcha;
+using Grand.Services.Common;
 using Grand.Services.Customers;
 using Grand.Services.Directory;
 using Grand.Services.Localization;
@@ -47,7 +48,7 @@ namespace Grand.Web.Controllers
         private readonly VendorSettings _vendorSettings;
         private readonly CaptchaSettings _captchaSettings;
         private readonly CommonSettings _commonSettings;
-        private readonly MediaSettings _mediaSettings;
+
         #endregion
 
         #region Constructors
@@ -66,8 +67,7 @@ namespace Grand.Web.Controllers
             LocalizationSettings localizationSettings,
             VendorSettings vendorSettings,
             CaptchaSettings captchaSettings,
-            CommonSettings commonSettings,
-            MediaSettings mediaSettings)
+            CommonSettings commonSettings)
         {
             _workContext = workContext;
             _storeContext = storeContext;
@@ -83,7 +83,6 @@ namespace Grand.Web.Controllers
             _vendorSettings = vendorSettings;
             _captchaSettings = captchaSettings;
             _commonSettings = commonSettings;
-            _mediaSettings = mediaSettings;
         }
 
         #endregion
@@ -184,7 +183,7 @@ namespace Grand.Web.Controllers
                         pictureId = picture.Id;
                 }
 
-                var description = Core.Html.HtmlHelper.FormatText(model.Description, false, false, true, false, false, false);
+                var description = FormatText.ConvertText(model.Description);
                 var address = new Address();
                 //disabled by default
                 var vendor = new Vendor {
@@ -222,6 +221,9 @@ namespace Grand.Web.Controllers
 
             //If we got this far, something failed, redisplay form
             model.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnApplyVendorPage;
+            model.TermsOfServiceEnabled = _vendorSettings.TermsOfServiceEnabled;
+            model.TermsOfServicePopup = _commonSettings.PopupForTermsOfServiceLinks;
+
             var countries = await _countryService.GetAllCountries(_workContext.WorkingLanguage.Id);
             model.Address = await _mediator.Send(new GetVendorAddress() {
                 Language = _workContext.WorkingLanguage,
@@ -249,7 +251,7 @@ namespace Grand.Web.Controllers
             model.Email = vendor.Email;
             model.Name = vendor.Name;
             model.GenericAttributes = vendor.GenericAttributes;
-            model.PictureUrl = await _pictureService.GetPictureUrl(vendor.PictureId, _mediaSettings.AvatarPictureSize, false);
+            model.PictureUrl = await _pictureService.GetPictureUrl(vendor.PictureId);
             var countries = await _countryService.GetAllCountries(_workContext.WorkingLanguage.Id);
             model.Address = await _mediator.Send(new GetVendorAddress() {
                 Language = _workContext.WorkingLanguage,
@@ -300,7 +302,7 @@ namespace Grand.Web.Controllers
 
             if (ModelState.IsValid && ModelState.ErrorCount == 0)
             {
-                var description = Core.Html.HtmlHelper.FormatText(model.Description, false, false, true, false, false, false);
+                var description = FormatText.ConvertText(model.Description);
 
                 vendor.Name = model.Name;
                 vendor.Email = model.Email;

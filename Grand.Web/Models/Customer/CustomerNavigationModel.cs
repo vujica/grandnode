@@ -1,8 +1,8 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 
 namespace Grand.Web.Models.Customer
 {
-    public partial class CustomerNavigationModel : BaseGrandModel
+    public partial class CustomerNavigationModel : BaseModel
     {
         public bool HideInfo { get; set; }
         public bool HideAddresses { get; set; }
@@ -13,14 +13,13 @@ namespace Grand.Web.Models.Customer
         public bool HideRewardPoints { get; set; }
         public bool HideChangePassword { get; set; }
         public bool HideDeleteAccount { get; set; }
-        public bool HideAvatar { get; set; }
         public bool HideAuctions { get; set; }
-        public bool HideForumSubscriptions { get; set; }
         public bool HideNotes { get; set; }
         public bool HideDocuments { get; set; }
         public bool ShowVendorInfo { get; set; }
         public bool HideReviews { get; set; }
         public bool HideCourses { get; set; }
+        public bool HideSubAccounts { get; set; }
         public CustomerNavigationEnum SelectedTab { get; set; }
     }
 
@@ -35,13 +34,12 @@ namespace Grand.Web.Models.Customer
         RewardPoints = 60,
         ChangePassword = 70,
         DeleteAccount = 75,
-        Avatar = 80,
-        ForumSubscriptions = 90,
         VendorInfo = 100,
         Auctions = 110,
         Notes = 120,
         Documents = 130,
         Reviews = 140,
-        Courses = 150
+        Courses = 150,
+        SubAccounts = 160
     }
 }

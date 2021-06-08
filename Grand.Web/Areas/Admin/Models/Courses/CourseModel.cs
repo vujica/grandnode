@@ -1,17 +1,15 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
+﻿using Grand.Framework.Localization;
 using Grand.Framework.Mapping;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Courses;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Grand.Framework.Mvc.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Courses
 {
-    [Validator(typeof(CourseValidator))]
-    public partial class CourseModel : BaseGrandEntityModel, ILocalizedModel<CourseLocalizedModel>, IAclMappingModel, IStoreMappingModel
+    public partial class CourseModel : BaseEntityModel, ILocalizedModel<CourseLocalizedModel>, IAclMappingModel, IStoreMappingModel
     {
         public CourseModel()
         {
@@ -79,7 +77,7 @@ namespace Grand.Web.Areas.Admin.Models.Courses
 
         #region Nested classes
 
-        public partial class AssociateProductToCourseModel : BaseGrandModel
+        public partial class AssociateProductToCourseModel : BaseModel
         {
             public AssociateProductToCourseModel()
             {

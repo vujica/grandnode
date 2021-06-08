@@ -20,6 +20,11 @@ namespace Grand.Domain.Customers
         public bool AllowUsersToChangeUsernames { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether users are allowed to change their email
+        /// </summary>
+        public bool AllowUsersToChangeEmail { get; set; }
+
+        /// <summary>
         /// Default password format for customers
         /// </summary>
         public PasswordFormat DefaultPasswordFormat { get; set; }
@@ -35,6 +40,11 @@ namespace Grand.Domain.Customers
         public int PasswordMinLength { get; set; }
 
         /// <summary>
+        /// Gets or sets a regular expression for password validation
+        /// </summary>
+        public string PasswordRegularExpression { get; set; }
+
+        /// <summary>
         /// Gets or sets a number of passwords that should not be the same as the previous one; 0 if the customer can use the same password time after time
         /// </summary>
         public int UnduplicatedPasswordsNumber { get; set; }
@@ -48,21 +58,6 @@ namespace Grand.Domain.Customers
         /// User registration type
         /// </summary>
         public UserRegistrationType UserRegistrationType { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether customers are allowed to upload avatars.
-        /// </summary>
-        public bool AllowCustomersToUploadAvatars { get; set; }
-
-        /// <summary>
-        /// Gets or sets a maximum avatar size (in bytes)
-        /// </summary>
-        public int AvatarMaximumSizeBytes { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether to display default user avatar.
-        /// </summary>
-        public bool DefaultAvatarEnabled { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether customers location is shown
@@ -108,6 +103,11 @@ namespace Grand.Domain.Customers
         /// Gets or sets a value indicating whether to hide 'Documents' tab on 'My account' page
         /// </summary>
         public bool HideDocumentsTab { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to hide 'Subaccounts' tab on 'My account' page
+        /// </summary>
+        public bool HideSubAccountsTab { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to validate user when downloading products
@@ -213,6 +213,11 @@ namespace Grand.Domain.Customers
         /// Gets or sets a value for two factor authentication type
         /// </summary>
         public TwoFactorAuthenticationType TwoFactorAuthenticationType { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether geo-location is enabled
+        /// </summary>
+        public bool GeoEnabled { get; set; }
 
         #region Form fields
 

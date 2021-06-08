@@ -1,4 +1,6 @@
+using Grand.Domain.Common;
 using Grand.Domain.Localization;
+using System;
 using System.Collections.Generic;
 
 namespace Grand.Domain.Catalog
@@ -13,6 +15,7 @@ namespace Grand.Domain.Catalog
         public ProductAttributeMapping()
         {
             Locales = new List<LocalizedProperty>();
+            ConditionAttribute = new List<CustomAttribute>();
         }
         /// <summary>
         /// Gets or sets the product identifier
@@ -82,7 +85,14 @@ namespace Grand.Domain.Catalog
         /// Conditional attributes that only appear if a previous attribute is selected, such as having an option 
         /// for personalizing clothing with a name and only providing the text input box if the "Personalize" radio button is checked.
         /// </summary>
+        [Obsolete("Will be removed in version 5.0.0 - this field was replaced by ConditionAttribute")] 
         public string ConditionAttributeXml { get; set; }
+
+        /// <summary>
+        /// Gets or sets the custom attributes (see "ProductAttribute" entity for more info)
+        /// </summary>
+        public IList<CustomAttribute> ConditionAttribute { get; set; }
+
         /// <summary>
         /// Gets or sets the collection of locales
         /// </summary>
@@ -95,11 +105,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (AttributeControlType)this.AttributeControlTypeId;
+                return (AttributeControlType)AttributeControlTypeId;
             }
             set
             {
-                this.AttributeControlTypeId = (int)value; 
+                AttributeControlTypeId = (int)value; 
             }
         }
         
@@ -108,7 +118,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductAttributeValue> ProductAttributeValues
         {
-            get { return _productAttributeValues ?? (_productAttributeValues = new List<ProductAttributeValue>()); }
+            get { return _productAttributeValues ??= new List<ProductAttributeValue>(); }
             protected set { _productAttributeValues = value; }
         }
 

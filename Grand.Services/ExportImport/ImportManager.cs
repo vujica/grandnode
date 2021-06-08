@@ -17,7 +17,7 @@ using Grand.Services.Shipping;
 using Grand.Services.Tax;
 using Grand.Services.Vendors;
 using Microsoft.AspNetCore.StaticFiles;
-using OfficeOpenXml;
+using NPOI.XSSF.UserModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -48,7 +48,8 @@ namespace Grand.Services.ExportImport
         private readonly IManufacturerTemplateService _manufacturerTemplateService;
         private readonly IProductTemplateService _productTemplateService;
         private readonly IDownloadService _downloadService;
-        private readonly IShippingService _shippingService;
+        private readonly IWarehouseService _warehouseService;
+        private readonly IDeliveryDateService _deliveryDateService;
         private readonly ITaxCategoryService _taxService;
         private readonly IMeasureService _measureService;
         private readonly ILanguageService _languageService;
@@ -73,7 +74,8 @@ namespace Grand.Services.ExportImport
             IManufacturerTemplateService manufacturerTemplateService,
             IProductTemplateService productTemplateService,
             IDownloadService downloadService,
-            IShippingService shippingService,
+            IWarehouseService warehouseService,
+            IDeliveryDateService deliveryDateService,
             ITaxCategoryService taxService,
             IMeasureService measureService,
             ILanguageService languageService,
@@ -94,7 +96,8 @@ namespace Grand.Services.ExportImport
             _manufacturerTemplateService = manufacturerTemplateService;
             _productTemplateService = productTemplateService;
             _downloadService = downloadService;
-            _shippingService = shippingService;
+            _warehouseService = warehouseService;
+            _deliveryDateService = deliveryDateService;
             _taxService = taxService;
             _measureService = measureService;
             _languageService = languageService;
@@ -104,6 +107,31 @@ namespace Grand.Services.ExportImport
         #endregion
 
         #region Utilities
+
+        protected virtual PropertyManager<T> GetPropertyManager<T>(NPOI.SS.UserModel.ISheet worksheet)
+        {
+            var properties = new List<PropertyByName<T>>();
+            var poz = 0;
+            while (true)
+            {
+                try
+                {
+                    var cell = worksheet.GetRow(0).Cells[poz];
+
+                    if (cell == null || string.IsNullOrEmpty(cell.StringCellValue))
+                        break;
+
+                    poz += 1;
+                    properties.Add(new PropertyByName<T>(cell.StringCellValue.ToLower()));
+                }
+                catch
+                {
+                    break;
+                }
+            }
+            return new PropertyManager<T>(properties.ToArray());
+        }
+
         protected virtual void PrepareProductMapping(Product product, PropertyManager<Product> manager,
             IList<ProductTemplate> templates,
             IList<DeliveryDate> deliveryDates,
@@ -585,7 +613,7 @@ namespace Grand.Services.ExportImport
                 }
             }
         }
-        
+
         protected virtual void PrepareManufacturerMapping(Manufacturer manufacturer, PropertyManager<Manufacturer> manager, IList<ManufacturerTemplate> templates)
         {
             foreach (var property in manager.GetProperties)
@@ -729,131 +757,96 @@ namespace Grand.Services.ExportImport
         /// <param name="stream">Stream</param>
         public virtual async Task ImportProductsFromXlsx(Stream stream)
         {
+            var workbook = new XSSFWorkbook(stream);
+            var worksheet = workbook.GetSheetAt(0);
+            if (worksheet == null)
+                throw new GrandException("No worksheet found");
+            
+            var manager = GetPropertyManager<Product>(worksheet);
 
-            // ok, we can run the real code of the sample now
-            using (var xlPackage = new ExcelPackage(stream))
+            var templates = await _productTemplateService.GetAllProductTemplates();
+            var deliveryDates = await _deliveryDateService.GetAllDeliveryDates();
+            var taxes = await _taxService.GetAllTaxCategories();
+            var warehouses = await _warehouseService.GetAllWarehouses();
+            var units = await _measureService.GetAllMeasureUnits();
+
+            for (var iRow = 1; iRow < worksheet.PhysicalNumberOfRows; iRow++)
             {
-                // get the first worksheet in the workbook
-                var worksheet = xlPackage.Workbook.Worksheets.FirstOrDefault();
-                if (worksheet == null)
-                    throw new GrandException("No worksheet found");
 
+                manager.ReadFromXlsx(worksheet, iRow);
+                var sku = manager.GetProperty("sku") != null ? manager.GetProperty("sku").StringValue : string.Empty;
+                var productid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
 
-                //the columns
-                var properties = new List<PropertyByName<Product>>();
-                var poz = 1;
-                while (true)
+                Product product = null;
+
+                if (!string.IsNullOrEmpty(sku))
+                    product = await _productService.GetProductBySku(sku);
+
+                if (!string.IsNullOrEmpty(productid))
+                    product = await _productService.GetProductById(productid);
+
+                var isNew = product == null;
+
+                product ??= new Product();
+
+                if (isNew)
                 {
-                    try
-                    {
-                        var cell = worksheet.Cells[1, poz];
-
-                        if (cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()))
-                            break;
-
-                        poz += 1;
-                        properties.Add(new PropertyByName<Product>(cell.Value.ToString().ToLower()));
-                    }
-                    catch
-                    {
-                        break;
-                    }
+                    product.CreatedOnUtc = DateTime.UtcNow;
+                    product.ProductTemplateId = templates.FirstOrDefault()?.Id;
+                    product.DeliveryDateId = deliveryDates.FirstOrDefault()?.Id;
+                    product.TaxCategoryId = taxes.FirstOrDefault()?.Id;
+                    product.WarehouseId = warehouses.FirstOrDefault()?.Id;
+                    product.UnitId = units.FirstOrDefault().Id;
+                    if (!string.IsNullOrEmpty(productid))
+                        product.Id = productid;
                 }
 
-                var manager = new PropertyManager<Product>(properties.ToArray());
+                PrepareProductMapping(product, manager, templates, deliveryDates, warehouses, units, taxes);
 
-                var templates = await _productTemplateService.GetAllProductTemplates();
-                var deliveryDates = await _shippingService.GetAllDeliveryDates();
-                var taxes = await _taxService.GetAllTaxCategories();
-                var warehouses = await _shippingService.GetAllWarehouses();
-                var units = await _measureService.GetAllMeasureUnits();
+                if (isNew && manager.GetProperties.All(p => p.PropertyName.ToLower() != "producttypeid"))
+                    product.ProductType = ProductType.SimpleProduct;
 
-                int iRow = 2;
-                while (true)
+                product.LowStock = product.MinStockQuantity > 0 && product.MinStockQuantity >= product.StockQuantity;
+
+                product.UpdatedOnUtc = DateTime.UtcNow;
+
+                if (isNew)
                 {
-                    var allColumnsAreEmpty = manager.GetProperties
-                                            .Select(property => worksheet.Cells[iRow, property.PropertyOrderPosition])
-                                            .All(cell => cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()));
-
-                    if (allColumnsAreEmpty)
-                        break;
-
-                    manager.ReadFromXlsx(worksheet, iRow);
-                    var sku = manager.GetProperty("sku") != null ? manager.GetProperty("sku").StringValue : string.Empty;
-                    var productid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
-
-                    Product product = null;
-
-                    if (!String.IsNullOrEmpty(sku))
-                        product = await _productService.GetProductBySku(sku);
-
-                    if (!String.IsNullOrEmpty(productid))
-                        product = await _productService.GetProductById(productid);
-
-                    var isNew = product == null;
-
-                    product = product ?? new Product();
-
-                    if (isNew)
-                    {
-                        product.CreatedOnUtc = DateTime.UtcNow;
-                        product.ProductTemplateId = templates.FirstOrDefault()?.Id;
-                        product.DeliveryDateId = deliveryDates.FirstOrDefault()?.Id;
-                        product.TaxCategoryId = taxes.FirstOrDefault()?.Id;
-                        product.WarehouseId = warehouses.FirstOrDefault()?.Id;
-                        product.UnitId = units.FirstOrDefault().Id;
-                        if (!string.IsNullOrEmpty(productid))
-                            product.Id = productid;
-                    }
-
-                    PrepareProductMapping(product, manager, templates, deliveryDates, warehouses, units, taxes);
-
-                    if (isNew && properties.All(p => p.PropertyName.ToLower() != "producttypeid"))
-                        product.ProductType = ProductType.SimpleProduct;
-
-                    product.LowStock = product.MinStockQuantity > 0 && product.MinStockQuantity >= product.StockQuantity;
-
-                    product.UpdatedOnUtc = DateTime.UtcNow;
-
-                    if (isNew)
-                    {
-                        await _productService.InsertProduct(product);
-                    }
-                    else
-                    {
-                        await _productService.UpdateProduct(product);
-                    }
-
-                    //search engine name
-                    var seName = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : product.Name;
-                    await _urlRecordService.SaveSlug(product, await product.ValidateSeName(seName, product.Name, true, _seoSetting, _urlRecordService, _languageService), "");
-                    var _seName = await product.ValidateSeName(seName, product.Name, true, _seoSetting, _urlRecordService, _languageService);
-                    //search engine name
-                    await _urlRecordService.SaveSlug(product, _seName, "");
-                    product.SeName = _seName;
+                    await _productService.InsertProduct(product);
+                }
+                else
+                {
                     await _productService.UpdateProduct(product);
-
-                    //category mappings
-                    var categoryIds = manager.GetProperty("categoryids") != null ? manager.GetProperty("categoryids").StringValue : string.Empty;
-                    if (!String.IsNullOrEmpty(categoryIds))
-                    {
-                        await PrepareProductCategories(product, categoryIds);
-                    }
-
-                    //manufacturer mappings
-                    var manufacturerIds = manager.GetProperty("manufacturerids") != null ? manager.GetProperty("manufacturerids").StringValue : string.Empty;
-                    if (!String.IsNullOrEmpty(manufacturerIds))
-                    {
-                        await PrepareProductManufacturers(product, manufacturerIds);
-                    }
-
-                    //pictures
-                    await PrepareProductPictures(product, manager, isNew);
-
-                    //next product
-                    iRow++;
                 }
+
+                //search engine name
+                var seName = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : product.Name;
+                await _urlRecordService.SaveSlug(product, await product.ValidateSeName(seName, product.Name, true, _seoSetting, _urlRecordService, _languageService), "");
+                var _seName = await product.ValidateSeName(seName, product.Name, true, _seoSetting, _urlRecordService, _languageService);
+                //search engine name
+                await _urlRecordService.SaveSlug(product, _seName, "");
+                product.SeName = _seName;
+                await _productService.UpdateProduct(product);
+
+                //category mappings
+                var categoryIds = manager.GetProperty("categoryids") != null ? manager.GetProperty("categoryids").StringValue : string.Empty;
+                if (!string.IsNullOrEmpty(categoryIds))
+                {
+                    await PrepareProductCategories(product, categoryIds);
+                }
+
+                //manufacturer mappings
+                var manufacturerIds = manager.GetProperty("manufacturerids") != null ? manager.GetProperty("manufacturerids").StringValue : string.Empty;
+                if (!string.IsNullOrEmpty(manufacturerIds))
+                {
+                    await PrepareProductManufacturers(product, manufacturerIds);
+                }
+
+                //pictures
+                await PrepareProductPictures(product, manager, isNew);
+
             }
+
         }
 
         /// <summary>
@@ -1000,90 +993,60 @@ namespace Grand.Services.ExportImport
         /// <param name="stream">Stream</param>
         public virtual async Task ImportManufacturerFromXlsx(Stream stream)
         {
-            using (var xlPackage = new ExcelPackage(stream))
+            var workbook = new XSSFWorkbook(stream);
+            var worksheet = workbook.GetSheetAt(0);
+            if (worksheet == null)
+                throw new GrandException("No worksheet found");
+
+            var manager = GetPropertyManager<Manufacturer>(worksheet);
+
+            var templates = await _manufacturerTemplateService.GetAllManufacturerTemplates();
+
+            for (var iRow = 1; iRow < worksheet.PhysicalNumberOfRows; iRow++)
             {
-                // get the first worksheet in the workbook
-                var worksheet = xlPackage.Workbook.Worksheets.FirstOrDefault();
-                if (worksheet == null)
-                    throw new GrandException("No worksheet found");
 
-                //property array
-                //the columns
-                var properties = new List<PropertyByName<Manufacturer>>();
-                var poz = 1;
-                while (true)
+                manager.ReadFromXlsx(worksheet, iRow);
+                var manufacturerid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
+                var manufacturer = string.IsNullOrEmpty(manufacturerid) ? null : await _manufacturerService.GetManufacturerById(manufacturerid);
+
+                var isNew = manufacturer == null;
+
+                manufacturer ??= new Manufacturer();
+
+                if (isNew)
                 {
-                    try
-                    {
-                        var cell = worksheet.Cells[1, poz];
-
-                        if (cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()))
-                            break;
-
-                        poz += 1;
-                        properties.Add(new PropertyByName<Manufacturer>(cell.Value.ToString().ToLower()));
-                    }
-                    catch
-                    {
-                        break;
-                    }
+                    manufacturer.CreatedOnUtc = DateTime.UtcNow;
+                    manufacturer.ManufacturerTemplateId = templates.FirstOrDefault()?.Id;
+                    if (!string.IsNullOrEmpty(manufacturerid))
+                        manufacturer.Id = manufacturerid;
                 }
-                var manager = new PropertyManager<Manufacturer>(properties.ToArray());
-                var templates = await _manufacturerTemplateService.GetAllManufacturerTemplates();
 
-                var iRow = 2;
+                PrepareManufacturerMapping(manufacturer, manager, templates);
 
-                while (true)
+
+                var picture = manager.GetProperty("picture") != null ? manager.GetProperty("sename").StringValue : "";
+                if (!string.IsNullOrEmpty(picture))
                 {
-                    var allColumnsAreEmpty = manager.GetProperties
-                        .Select(property => worksheet.Cells[iRow, property.PropertyOrderPosition])
-                        .All(cell => cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()));
+                    var _picture = await LoadPicture(picture, manufacturer.Name,
+                        isNew ? "" : manufacturer.PictureId);
+                    if (_picture != null)
+                        manufacturer.PictureId = _picture.Id;
+                }
+                manufacturer.UpdatedOnUtc = DateTime.UtcNow;
 
-                    if (allColumnsAreEmpty)
-                        break;
-
-                    manager.ReadFromXlsx(worksheet, iRow);
-                    var manufacturerid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
-                    var manufacturer = string.IsNullOrEmpty(manufacturerid) ? null : await _manufacturerService.GetManufacturerById(manufacturerid);
-
-                    var isNew = manufacturer == null;
-
-                    manufacturer = manufacturer ?? new Manufacturer();
-
-                    if (isNew)
-                    {
-                        manufacturer.CreatedOnUtc = DateTime.UtcNow;
-                        manufacturer.ManufacturerTemplateId = templates.FirstOrDefault()?.Id;
-                        if (!string.IsNullOrEmpty(manufacturerid))
-                            manufacturer.Id = manufacturerid;
-                    }
-
-                    PrepareManufacturerMapping(manufacturer, manager, templates);
-
-                    
-                    var picture = manager.GetProperty("picture") != null ? manager.GetProperty("sename").StringValue : "";
-                    if (!string.IsNullOrEmpty(picture))
-                    {
-                        var _picture = await LoadPicture(picture, manufacturer.Name,
-                            isNew ? "" : manufacturer.PictureId);
-                        if (_picture != null)
-                            manufacturer.PictureId = _picture.Id;
-                    }
-                    manufacturer.UpdatedOnUtc = DateTime.UtcNow;
-
-                    if (isNew)
-                        await _manufacturerService.InsertManufacturer(manufacturer);
-                    else
-                        await _manufacturerService.UpdateManufacturer(manufacturer);
-
-                    var sename = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : manufacturer.Name;
-                    sename = await manufacturer.ValidateSeName(sename, manufacturer.Name, true, _seoSetting, _urlRecordService, _languageService);
-                    manufacturer.SeName = sename;
+                if (isNew)
+                    await _manufacturerService.InsertManufacturer(manufacturer);
+                else
                     await _manufacturerService.UpdateManufacturer(manufacturer);
-                    await _urlRecordService.SaveSlug(manufacturer, manufacturer.SeName, "");
-                    iRow++;
-                }
+
+                var sename = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : manufacturer.Name;
+                sename = await manufacturer.ValidateSeName(sename, manufacturer.Name, true, _seoSetting, _urlRecordService, _languageService);
+                manufacturer.SeName = sename;
+                await _manufacturerService.UpdateManufacturer(manufacturer);
+                await _urlRecordService.SaveSlug(manufacturer, manufacturer.SeName, "");
+
             }
+
         }
 
         /// <summary>
@@ -1092,90 +1055,58 @@ namespace Grand.Services.ExportImport
         /// <param name="stream">Stream</param>
         public virtual async Task ImportCategoryFromXlsx(Stream stream)
         {
-            using (var xlPackage = new ExcelPackage(stream))
+            var workbook = new XSSFWorkbook(stream);
+            var worksheet = workbook.GetSheetAt(0);
+            if (worksheet == null)
+                throw new GrandException("No worksheet found");
+
+            var manager = GetPropertyManager<Category>(worksheet);
+
+            var templates = await _categoryTemplateService.GetAllCategoryTemplates();
+
+            for (var iRow = 1; iRow < worksheet.PhysicalNumberOfRows; iRow++)
             {
-                // get the first worksheet in the workbook
-                var worksheet = xlPackage.Workbook.Worksheets.FirstOrDefault();
-                if (worksheet == null)
-                    throw new GrandException("No worksheet found");
+                manager.ReadFromXlsx(worksheet, iRow);
 
-                var iRow = 2;
+                var categoryid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
+                var category = string.IsNullOrEmpty(categoryid) ? null : await _categoryService.GetCategoryById(categoryid);
 
-                //property array
-                //the columns
-                var properties = new List<PropertyByName<Category>>();
-                var poz = 1;
-                while (true)
+                var isNew = category == null;
+
+                category ??= new Category();
+
+                if (isNew)
                 {
-                    try
-                    {
-                        var cell = worksheet.Cells[1, poz];
-
-                        if (cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()))
-                            break;
-
-                        poz += 1;
-                        properties.Add(new PropertyByName<Category>(cell.Value.ToString().ToLower()));
-                    }
-                    catch
-                    {
-                        break;
-                    }
+                    category.CreatedOnUtc = DateTime.UtcNow;
+                    category.CategoryTemplateId = templates.FirstOrDefault()?.Id;
+                    if (!string.IsNullOrEmpty(categoryid))
+                        category.Id = categoryid;
                 }
-                var manager = new PropertyManager<Category>(properties.ToArray());
-                var templates = await _categoryTemplateService.GetAllCategoryTemplates();
 
-                while (true)
-                {
-                    var allColumnsAreEmpty = manager.GetProperties
-                        .Select(property => worksheet.Cells[iRow, property.PropertyOrderPosition])
-                        .All(cell => cell == null || cell.Value == null || String.IsNullOrEmpty(cell.Value.ToString()));
+                PrepareCategoryMapping(category, manager, templates);
+                category.UpdatedOnUtc = DateTime.UtcNow;
 
-                    if (allColumnsAreEmpty)
-                        break;
-
-                    manager.ReadFromXlsx(worksheet, iRow);
-
-                    var categoryid = manager.GetProperty("id") != null ? manager.GetProperty("id").StringValue : string.Empty;
-                    var category = string.IsNullOrEmpty(categoryid) ? null : await _categoryService.GetCategoryById(categoryid);
-
-                    var isNew = category == null;
-
-                    category = category ?? new Category();
-
-                    if (isNew)
-                    {
-                        category.CreatedOnUtc = DateTime.UtcNow;
-                        category.CategoryTemplateId = templates.FirstOrDefault()?.Id;
-                        if (!string.IsNullOrEmpty(categoryid))
-                            category.Id = categoryid;
-                    }
-
-                    PrepareCategoryMapping(category, manager, templates);
-                    category.UpdatedOnUtc = DateTime.UtcNow;
-
-                    if (isNew)
-                        await _categoryService.InsertCategory(category);
-                    else
-                        await _categoryService.UpdateCategory(category);
-
-                    var picture = manager.GetProperty("picture") != null ? manager.GetProperty("sename").StringValue : "";
-                    if (!string.IsNullOrEmpty(picture))
-                    {
-                        var _picture = await LoadPicture(picture, category.Name, isNew ? "" : category.PictureId);
-                        if (_picture != null)
-                            category.PictureId = _picture.Id;
-                    }
-
-                    var sename = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : category.Name;
-                    sename = await category.ValidateSeName(sename, category.Name, true, _seoSetting, _urlRecordService, _languageService);
-                    category.SeName = sename;
+                if (isNew)
+                    await _categoryService.InsertCategory(category);
+                else
                     await _categoryService.UpdateCategory(category);
-                    await _urlRecordService.SaveSlug(category, sename, "");
 
-                    iRow++;
+                var picture = manager.GetProperty("picture") != null ? manager.GetProperty("sename").StringValue : "";
+                if (!string.IsNullOrEmpty(picture))
+                {
+                    var _picture = await LoadPicture(picture, category.Name, isNew ? "" : category.PictureId);
+                    if (_picture != null)
+                        category.PictureId = _picture.Id;
                 }
+
+                var sename = manager.GetProperty("sename") != null ? manager.GetProperty("sename").StringValue : category.Name;
+                sename = await category.ValidateSeName(sename, category.Name, true, _seoSetting, _urlRecordService, _languageService);
+                category.SeName = sename;
+                await _categoryService.UpdateCategory(category);
+                await _urlRecordService.SaveSlug(category, sename, "");
+
             }
+
         }
 
         #endregion

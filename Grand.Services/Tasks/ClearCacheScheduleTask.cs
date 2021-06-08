@@ -8,18 +8,19 @@ namespace Grand.Services.Tasks
     /// </summary>
     public partial class ClearCacheScheduleTask : IScheduleTask
     {
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
 
-        public ClearCacheScheduleTask(ICacheManager cacheManager)
+        public ClearCacheScheduleTask(ICacheBase cacheManager)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
         }
+
         /// <summary>
         /// Executes a task
         /// </summary>
         public async Task Execute()
         {
-            await _cacheManager.Clear();
+            await _cacheBase.Clear();
         }
     }
 }

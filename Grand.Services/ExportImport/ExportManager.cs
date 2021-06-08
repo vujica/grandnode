@@ -1,6 +1,5 @@
 ﻿using Grand.Core;
 using Grand.Core.Extensions;
-using Grand.Domain;
 using Grand.Domain.Catalog;
 using Grand.Domain.Common;
 using Grand.Domain.Customers;
@@ -22,8 +21,8 @@ using Grand.Services.Seo;
 using Grand.Services.Shipping;
 using Grand.Services.Stores;
 using Microsoft.Extensions.DependencyInjection;
-using OfficeOpenXml;
-using OfficeOpenXml.Style;
+using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -153,7 +152,7 @@ namespace Grand.Services.ExportImport
             var xmlWriter = XmlWriter.Create(stringWriter, xwSettings);
             await xmlWriter.WriteStartDocumentAsync();
             xmlWriter.WriteStartElement("Manufacturers");
-            xmlWriter.WriteAttributeString("Version", GrandVersion.CurrentVersion);
+            xmlWriter.WriteAttributeString("Version", GrandVersion.FullVersion);
 
             foreach (var manufacturer in manufacturers)
             {
@@ -253,7 +252,7 @@ namespace Grand.Services.ExportImport
             var xmlWriter = XmlWriter.Create(stringWriter, xwSettings);
             await xmlWriter.WriteStartDocumentAsync();
             xmlWriter.WriteStartElement("Categories");
-            xmlWriter.WriteAttributeString("Version", GrandVersion.CurrentVersion);
+            xmlWriter.WriteAttributeString("Version", GrandVersion.FullVersion);
             await WriteCategories(xmlWriter, categories.ToList());
             xmlWriter.WriteEndElement();
             xmlWriter.WriteEndDocument();
@@ -310,7 +309,7 @@ namespace Grand.Services.ExportImport
             var xmlWriter = XmlWriter.Create(stringWriter, xwSettings);
             await xmlWriter.WriteStartDocumentAsync();
             xmlWriter.WriteStartElement("Products");
-            xmlWriter.WriteAttributeString("Version", GrandVersion.CurrentVersion);
+            xmlWriter.WriteAttributeString("Version", GrandVersion.FullVersion);
 
             foreach (var product in products)
             {
@@ -435,7 +434,8 @@ namespace Grand.Services.ExportImport
                     xmlWriter.WriteStartElement("TierPrice");
                     xmlWriter.WriteElementString("TierPriceId", null, tierPrice.Id);
                     xmlWriter.WriteElementString("StoreId", null, tierPrice.StoreId);
-                    xmlWriter.WriteElementString("CustomerRoleId", null, !String.IsNullOrEmpty(tierPrice.CustomerRoleId) ? tierPrice.CustomerRoleId : "");
+                    xmlWriter.WriteElementString("CustomerRoleId", null, !string.IsNullOrEmpty(tierPrice.CustomerRoleId) ? tierPrice.CustomerRoleId : "");
+                    xmlWriter.WriteElementString("CurrencyCode", null, tierPrice.CurrencyCode);
                     xmlWriter.WriteElementString("Quantity", null, tierPrice.Quantity.ToString());
                     xmlWriter.WriteElementString("Price", null, tierPrice.Price.ToString());
                     xmlWriter.WriteElementString("StartDateTimeUtc", tierPrice.StartDateTimeUtc.HasValue ? tierPrice.StartDateTimeUtc.Value.ToString() : "");
@@ -478,9 +478,6 @@ namespace Grand.Services.ExportImport
                         }
                         xmlWriter.WriteElementString("DefaultValue", null, productAttributeMapping.DefaultValue);
                     }
-                    //conditions
-                    xmlWriter.WriteElementString("ConditionAttributeXml", null, productAttributeMapping.ConditionAttributeXml);
-
 
                     xmlWriter.WriteStartElement("ProductAttributeValues");
                     var productAttributeValues = productAttributeMapping.ProductAttributeValues;
@@ -701,7 +698,7 @@ namespace Grand.Services.ExportImport
             var xmlWriter = XmlWriter.Create(stringWriter, xwSettings);
             await xmlWriter.WriteStartDocumentAsync();
             xmlWriter.WriteStartElement("Orders");
-            xmlWriter.WriteAttributeString("Version", GrandVersion.CurrentVersion);
+            xmlWriter.WriteAttributeString("Version", GrandVersion.FullVersion);
 
 
             foreach (var order in orders)
@@ -728,7 +725,6 @@ namespace Grand.Services.ExportImport
                 xmlWriter.WriteElementString("OrderShippingExclTax", null, order.OrderShippingExclTax.ToString());
                 xmlWriter.WriteElementString("PaymentMethodAdditionalFeeInclTax", null, order.PaymentMethodAdditionalFeeInclTax.ToString());
                 xmlWriter.WriteElementString("PaymentMethodAdditionalFeeExclTax", null, order.PaymentMethodAdditionalFeeExclTax.ToString());
-                xmlWriter.WriteElementString("TaxRates", null, order.TaxRates);
                 xmlWriter.WriteElementString("OrderTax", null, order.OrderTax.ToString());
                 xmlWriter.WriteElementString("OrderTotal", null, order.OrderTotal.ToString());
                 xmlWriter.WriteElementString("RefundedAmount", null, order.RefundedAmount.ToString());
@@ -783,7 +779,8 @@ namespace Grand.Services.ExportImport
                             xmlWriter.WriteElementString("DiscountAmountExclTax", null, orderItem.DiscountAmountExclTax.ToString());
                             xmlWriter.WriteElementString("OriginalProductCost", null, orderItem.OriginalProductCost.ToString());
                             xmlWriter.WriteElementString("AttributeDescription", null, orderItem.AttributeDescription);
-                            xmlWriter.WriteElementString("AttributesXml", null, orderItem.AttributesXml);
+                            //TO DO
+                            //xmlWriter.WriteElementString("AttributesXml", null, orderItem.AttributesXml);
                             xmlWriter.WriteElementString("Quantity", null, orderItem.Quantity.ToString());
                             xmlWriter.WriteElementString("DownloadCount", null, orderItem.DownloadCount.ToString());
                             xmlWriter.WriteElementString("IsDownloadActivated", null, orderItem.IsDownloadActivated.ToString());
@@ -850,119 +847,109 @@ namespace Grand.Services.ExportImport
         /// Export customer - personal info to XLSX
         /// </summary>
         /// <param name="customer">Customer</param>
-        public virtual async Task<byte[]> ExportCustomerToXlsx(Customer customer, string stroreId)
+        public virtual async Task<byte[]> ExportCustomerToXlsx(Customer customer, string storeId)
         {
             using (var stream = new MemoryStream())
             {
-                using (var xlPackage = new ExcelPackage(stream))
+                IWorkbook xlPackage = new XSSFWorkbook();
+
+                //customer info
+                ISheet worksheetCustomer = xlPackage.CreateSheet("CustomerInfo");
+                var managerCustomer = PrepareCustomer(customer);
+                managerCustomer.WriteToXlsx(worksheetCustomer);
+
+                //address
+                var worksheetAddress = xlPackage.CreateSheet("Address");
+                var managerAddress = new PropertyManager<Address>(PropertyByAddress());
+                managerAddress.WriteCaption(worksheetAddress);
+                var row = 1;
+                foreach (var item in customer.Addresses)
                 {
-                    //customer info
-                    var worksheetCustomer = xlPackage.Workbook.Worksheets.Add("CustomerInfo");
-                    var managerCustomer = PrepareCustomer(customer);
-                    managerCustomer.WriteCaption(worksheetCustomer, SetCaptionStyle);
-                    managerCustomer.WriteToXlsx(worksheetCustomer);
-
-                    //address
-                    var worksheetAddress = xlPackage.Workbook.Worksheets.Add("Address");
-                    var managerAddress = new PropertyManager<Address>(PropertyByAddress());
-                    managerAddress.WriteCaption(worksheetAddress, SetCaptionStyle);
-
-                    var row = 2;
-                    foreach (var item in customer.Addresses)
-                    {
-                        managerAddress.CurrentObject = item;
-                        managerAddress.WriteToXlsx(worksheetAddress, row++);
-                    }
-
-                    //orders
-                    var orderService = _serviceProvider.GetRequiredService<IOrderService>();
-                    var customerService = _serviceProvider.GetRequiredService<ICustomerService>();
-                    var orders = await orderService.SearchOrders(customerId: customer.Id);
-
-                    var worksheetOrder = xlPackage.Workbook.Worksheets.Add("Orders");
-                    var managerOrder = new PropertyManager<Order>(PropertyByOrder());
-                    managerOrder.WriteCaption(worksheetOrder, SetCaptionStyle);
-
-                    row = 2;
-                    foreach (var items in orders)
-                    {
-                        managerOrder.CurrentObject = items;
-                        managerOrder.WriteToXlsx(worksheetOrder, row++);
-                    }
-
-                    //activity log
-                    var customerActivityService = _serviceProvider.GetRequiredService<ICustomerActivityService>();
-                    var actlogs = await customerActivityService.GetAllActivities(customerId: customer.Id);
-
-                    var worksheetLog = xlPackage.Workbook.Worksheets.Add("ActivityLogs");
-                    var managerLog = new PropertyManager<ActivityLog>(PropertyByActivityLog());
-                    managerLog.WriteCaption(worksheetLog, SetCaptionStyle);
-
-                    row = 2;
-                    foreach (var items in actlogs)
-                    {
-                        managerLog.CurrentObject = items;
-                        managerLog.WriteToXlsx(worksheetLog, row++);
-                    }
-
-                    //contact us
-                    var contactUsService = _serviceProvider.GetRequiredService<IContactUsService>();
-                    var contacts = await contactUsService.GetAllContactUs(customerId: customer.Id);
-
-                    var worksheetContact = xlPackage.Workbook.Worksheets.Add("MessageContact");
-                    var managerContact = new PropertyManager<ContactUs>(PropertyByContactForm());
-                    managerContact.WriteCaption(worksheetContact, SetCaptionStyle);
-
-                    row = 2;
-                    foreach (var items in contacts)
-                    {
-                        managerContact.CurrentObject = items;
-                        managerContact.WriteToXlsx(worksheetContact, row++);
-                    }
-
-                    //emails
-                    var queuedEmailService = _serviceProvider.GetRequiredService<IQueuedEmailService>();
-                    var queuedEmails = await queuedEmailService.SearchEmails("", customer.Email, null, null, false, true, 100, true);
-
-                    var worksheetEmails = xlPackage.Workbook.Worksheets.Add("Emails");
-                    var managerEmails = new PropertyManager<QueuedEmail>(PropertyByEmails());
-                    managerEmails.WriteCaption(worksheetEmails, SetCaptionStyle);
-
-                    row = 2;
-                    foreach (var items in queuedEmails)
-                    {
-                        managerEmails.CurrentObject = items;
-                        managerEmails.WriteToXlsx(worksheetEmails, row++);
-                    }
-
-                    //Newsletter subscribe - history of change
-                    var newsletterService = _serviceProvider.GetRequiredService<INewsLetterSubscriptionService>();
-                    var newsletter = await newsletterService.GetNewsLetterSubscriptionByEmailAndStoreId(customer.Email, stroreId);
-                    if (newsletter != null)
-                    {
-                        var worksheetNewsletter = xlPackage.Workbook.Worksheets.Add("Newsletter subscribe - history of change");
-                        var managerNewsletter = new PropertyManager<NewsLetterSubscription>(PropertyByNewsLetterSubscription());
-                        managerNewsletter.WriteCaption(worksheetNewsletter, SetCaptionStyle);
-                        var newsletterhistory = await newsletter.GetHistoryObject(_serviceProvider.GetRequiredService<IHistoryService>());
-                        row = 2;
-                        foreach (var item in newsletterhistory)
-                        {
-                            var _tmp = (NewsLetterSubscription)item.Object;
-
-                            var newslettertml = new NewsLetterSubscription() {
-                                Active = _tmp.Active,
-                                CreatedOnUtc = item.CreatedOnUtc
-                            };
-                            _tmp.Categories.ToList().ForEach(x => newslettertml.Categories.Add(x));
-                            managerNewsletter.CurrentObject = newslettertml;
-                            managerNewsletter.WriteToXlsx(worksheetNewsletter, row++);
-                        }
-                    }
-
-                    xlPackage.Save();
+                    managerAddress.CurrentObject = item;
+                    managerAddress.WriteToXlsx(worksheetAddress, row++);
                 }
+
+                //orders
+                var orderService = _serviceProvider.GetRequiredService<IOrderService>();
+                var orders = await orderService.SearchOrders(customerId: customer.Id);
+                var worksheetOrder = xlPackage.CreateSheet("Orders");
+                var managerOrder = new PropertyManager<Order>(PropertyByOrder());
+                managerOrder.WriteCaption(worksheetOrder);
+                row = 1;
+                foreach (var items in orders)
+                {
+                    managerOrder.CurrentObject = items;
+                    managerOrder.WriteToXlsx(worksheetOrder, row++);
+                }
+
+                //activity log
+                var customerActivityService = _serviceProvider.GetRequiredService<ICustomerActivityService>();
+                var actlogs = await customerActivityService.GetAllActivities(customerId: customer.Id);
+                var worksheetLog = xlPackage.CreateSheet("ActivityLogs");
+                var managerLog = new PropertyManager<ActivityLog>(PropertyByActivityLog());
+                managerLog.WriteCaption(worksheetLog);
+                row = 1;
+                foreach (var items in actlogs)
+                {
+                    managerLog.CurrentObject = items;
+                    managerLog.WriteToXlsx(worksheetLog, row++);
+                }
+
+
+                //contact us
+                var contactUsService = _serviceProvider.GetRequiredService<IContactUsService>();
+                var contacts = await contactUsService.GetAllContactUs(customerId: customer.Id);
+                var worksheetContact = xlPackage.CreateSheet("MessageContact");
+                var managerContact = new PropertyManager<ContactUs>(PropertyByContactForm());
+                managerContact.WriteCaption(worksheetContact);
+                row = 1;
+                foreach (var items in contacts)
+                {
+                    managerContact.CurrentObject = items;
+                    managerContact.WriteToXlsx(worksheetContact, row++);
+                }
+
+                //emails
+                var queuedEmailService = _serviceProvider.GetRequiredService<IQueuedEmailService>();
+                var queuedEmails = await queuedEmailService.SearchEmails("", customer.Email, null, null, null, false, true, 100, true);
+                var worksheetEmails = xlPackage.CreateSheet("Emails");
+                var managerEmails = new PropertyManager<QueuedEmail>(PropertyByEmails());
+                managerEmails.WriteCaption(worksheetEmails);
+                row = 1;
+                foreach (var items in queuedEmails)
+                {
+                    managerEmails.CurrentObject = items;
+                    managerEmails.WriteToXlsx(worksheetEmails, row++);
+                }
+
+                //Newsletter subscribe - history of change
+                var newsletterService = _serviceProvider.GetRequiredService<INewsLetterSubscriptionService>();
+                var newsletter = await newsletterService.GetNewsLetterSubscriptionByEmailAndStoreId(customer.Email, storeId);
+                if (newsletter != null)
+                {
+                    var worksheetNewsletter = xlPackage.CreateSheet("Newsletter subscribe - history of change");
+                    var managerNewsletter = new PropertyManager<NewsLetterSubscription>(PropertyByNewsLetterSubscription());
+                    var newsletterhistory = await newsletter.GetHistoryObject(_serviceProvider.GetRequiredService<IHistoryService>());
+                    managerNewsletter.WriteCaption(worksheetNewsletter);
+                    row = 1;
+                    foreach (var item in newsletterhistory)
+                    {
+                        var _tmp = (NewsLetterSubscription)item.Object;
+
+                        var newslettertml = new NewsLetterSubscription() {
+                            Active = _tmp.Active,
+                            CreatedOnUtc = item.CreatedOnUtc
+                        };
+                        _tmp.Categories.ToList().ForEach(x => newslettertml.Categories.Add(x));
+                        managerNewsletter.CurrentObject = newslettertml;
+                        managerNewsletter.WriteToXlsx(worksheetNewsletter, row++);
+                    }
+                }
+
+                xlPackage.Write(stream);
                 return stream.ToArray();
             }
+
         }
 
 
@@ -982,7 +969,7 @@ namespace Grand.Services.ExportImport
             var xmlWriter = XmlWriter.Create(stringWriter, xwSettings);
             await xmlWriter.WriteStartDocumentAsync();
             xmlWriter.WriteStartElement("Customers");
-            xmlWriter.WriteAttributeString("Version", GrandVersion.CurrentVersion);
+            xmlWriter.WriteAttributeString("Version", GrandVersion.FullVersion);
 
             foreach (var customer in customers)
             {
@@ -1003,7 +990,6 @@ namespace Grand.Services.ExportImport
                 xmlWriter.WriteElementString("IsGuest", null, customer.IsGuest().ToString());
                 xmlWriter.WriteElementString("IsRegistered", null, customer.IsRegistered().ToString());
                 xmlWriter.WriteElementString("IsAdministrator", null, customer.IsAdmin().ToString());
-                xmlWriter.WriteElementString("IsForumModerator", null, customer.IsForumModerator().ToString());
 
                 xmlWriter.WriteElementString("FirstName", null, customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.FirstName));
                 xmlWriter.WriteElementString("LastName", null, customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.LastName));
@@ -1028,10 +1014,6 @@ namespace Grand.Services.ExportImport
                     bool subscribedToNewsletters = newsletter != null && newsletter.Active;
                     xmlWriter.WriteElementString(string.Format("Newsletter-in-store-{0}", store.Id), null, subscribedToNewsletters.ToString());
                 }
-
-                xmlWriter.WriteElementString("AvatarPictureId", null, customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.AvatarPictureId)?.ToString());
-                xmlWriter.WriteElementString("ForumPostCount", null, customer.GetAttributeFromEntity<int>(SystemCustomerAttributeNames.ForumPostCount).ToString());
-                xmlWriter.WriteElementString("Signature", null, customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Signature));
 
                 xmlWriter.WriteEndElement();
             }
@@ -1130,21 +1112,19 @@ namespace Grand.Services.ExportImport
         {
             using (var stream = new MemoryStream())
             {
-                using (var xlPackage = new ExcelPackage(stream))
+                IWorkbook xlPackage = new XSSFWorkbook();
+                ISheet worksheet = xlPackage.CreateSheet(typeof(T).Name);
+                var manager = new PropertyManager<T>(properties);
+                manager.WriteCaption(worksheet);
+
+                var row = 1;
+
+                foreach (var items in itemsToExport)
                 {
-                    var worksheet = xlPackage.Workbook.Worksheets.Add(typeof(T).Name);
-                    var manager = new PropertyManager<T>(properties);
-                    manager.WriteCaption(worksheet, SetCaptionStyle);
-
-                    var row = 2;
-                    foreach (var items in itemsToExport)
-                    {
-                        manager.CurrentObject = items;
-                        manager.WriteToXlsx(worksheet, row++);
-                    }
-
-                    xlPackage.Save();
+                    manager.CurrentObject = items;
+                    manager.WriteToXlsx(worksheet, row++);
                 }
+                xlPackage.Write(stream);
                 return stream.ToArray();
             }
         }
@@ -1188,13 +1168,6 @@ namespace Grand.Services.ExportImport
             return await _pictureService.GetThumbLocalPath(picture);
         }
 
-        private void SetCaptionStyle(ExcelStyle style)
-        {
-            style.Fill.PatternType = ExcelFillStyle.Solid;
-            style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(184, 204, 228));
-            style.Font.Bold = true;
-        }
-
 
         private PropertyByName<Order>[] PropertyByOrder()
         {
@@ -1217,7 +1190,6 @@ namespace Grand.Services.ExportImport
                     new PropertyByName<Order>("OrderShippingExclTax", p=>p.OrderShippingExclTax),
                     new PropertyByName<Order>("PaymentMethodAdditionalFeeInclTax", p=>p.PaymentMethodAdditionalFeeInclTax),
                     new PropertyByName<Order>("PaymentMethodAdditionalFeeExclTax", p=>p.PaymentMethodAdditionalFeeExclTax),
-                    new PropertyByName<Order>("TaxRates", p=>p.TaxRates),
                     new PropertyByName<Order>("OrderTax", p=>p.OrderTax),
                     new PropertyByName<Order>("OrderTotal", p=>p.OrderTotal),
                     new PropertyByName<Order>("RefundedAmount", p=>p.RefundedAmount),
@@ -1298,7 +1270,6 @@ namespace Grand.Services.ExportImport
                 new PropertyByName<Customer>("IsGuest", p => p.IsGuest()),
                 new PropertyByName<Customer>("IsRegistered", p => p.IsRegistered()),
                 new PropertyByName<Customer>("IsAdministrator", p => p.IsAdmin()),
-                new PropertyByName<Customer>("IsForumModerator", p => p.IsForumModerator()),
                 //attributes
                 new PropertyByName<Customer>("FirstName", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.FirstName)),
                 new PropertyByName<Customer>("LastName", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.LastName)),
@@ -1315,9 +1286,6 @@ namespace Grand.Services.ExportImport
                 new PropertyByName<Customer>("VatNumber", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.VatNumber)),
                 new PropertyByName<Customer>("VatNumberStatusId", p => p.GetAttributeFromEntity<int>(SystemCustomerAttributeNames.VatNumberStatusId)),
                 new PropertyByName<Customer>("TimeZoneId", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.TimeZoneId)),
-                new PropertyByName<Customer>("AvatarPictureId", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.AvatarPictureId)),
-                new PropertyByName<Customer>("ForumPostCount", p => p.GetAttributeFromEntity<int>(SystemCustomerAttributeNames.ForumPostCount)),
-                new PropertyByName<Customer>("Signature", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Signature)),
             };
             return properties;
         }
@@ -1407,7 +1375,6 @@ namespace Grand.Services.ExportImport
             helper.ObjectList.Add(new PropertyHelperList<Customer>("IsGuest", p => p.IsGuest()));
             helper.ObjectList.Add(new PropertyHelperList<Customer>("IsRegistered", p => p.IsRegistered()));
             helper.ObjectList.Add(new PropertyHelperList<Customer>("IsAdministrator", p => p.IsAdmin()));
-            helper.ObjectList.Add(new PropertyHelperList<Customer>("IsForumModerator", p => p.IsForumModerator()));
             //attributes
             helper.ObjectList.Add(new PropertyHelperList<Customer>("FirstName", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.FirstName)));
             helper.ObjectList.Add(new PropertyHelperList<Customer>("LastName", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.LastName)));
@@ -1442,8 +1409,6 @@ namespace Grand.Services.ExportImport
             helper.ObjectList.Add(new PropertyHelperList<Customer>("Phone", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Phone)));
             helper.ObjectList.Add(new PropertyHelperList<Customer>("Fax", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Fax)));
             helper.ObjectList.Add(new PropertyHelperList<Customer>("VatNumber", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.VatNumber)));
-            helper.ObjectList.Add(new PropertyHelperList<Customer>("ForumPostCount", p => p.GetAttributeFromEntity<int>(SystemCustomerAttributeNames.ForumPostCount)));
-            helper.ObjectList.Add(new PropertyHelperList<Customer>("Signature", p => p.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.Signature)));
 
             return helper;
         }

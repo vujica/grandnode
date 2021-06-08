@@ -1,4 +1,5 @@
 using Grand.Core.Caching;
+using Grand.Core.Caching.Constants;
 using Grand.Domain.Data;
 using Grand.Domain.Directory;
 using Grand.Services.Events;
@@ -18,29 +19,13 @@ namespace Grand.Services.Directory
     /// </summary>
     public partial class StateProvinceService : IStateProvinceService
     {
-        #region Constants
-
-        /// {0} : state ID
-        /// </remarks>
-        private const string STATEPROVINCES_BY_KEY = "Grand.stateprovince.{0}";
-
-        /// {0} : country ID
-        /// {1} : language ID
-        /// {2} : show hidden records?
-        /// </remarks>
-        private const string STATEPROVINCES_ALL_KEY = "Grand.stateprovince.all-{0}-{1}-{2}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string STATEPROVINCES_PATTERN_KEY = "Grand.stateprovince.";
-
-        #endregion
+        
 
         #region Fields
 
         private readonly IRepository<StateProvince> _stateProvinceRepository;
         private readonly IMediator _mediator;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
 
         #endregion
 
@@ -52,11 +37,11 @@ namespace Grand.Services.Directory
         /// <param name="cacheManager">Cache manager</param>
         /// <param name="stateProvinceRepository">State/province repository</param>
         /// <param name="mediator">Mediator</param>
-        public StateProvinceService(ICacheManager cacheManager,
+        public StateProvinceService(ICacheBase cacheManager,
             IRepository<StateProvince> stateProvinceRepository,
             IMediator mediator)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _stateProvinceRepository = stateProvinceRepository;
             _mediator = mediator;
         }
@@ -75,7 +60,7 @@ namespace Grand.Services.Directory
 
             await _stateProvinceRepository.DeleteAsync(stateProvince);
 
-            await _cacheManager.RemoveByPrefix(STATEPROVINCES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.STATEPROVINCES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityDeleted(stateProvince);
@@ -91,8 +76,8 @@ namespace Grand.Services.Directory
             if (string.IsNullOrEmpty(stateProvinceId))
                 return null;
 
-            var key = string.Format(STATEPROVINCES_BY_KEY, stateProvinceId);
-            return await _cacheManager.GetAsync(key, () => _stateProvinceRepository.GetByIdAsync(stateProvinceId));
+            var key = string.Format(CacheKey.STATEPROVINCES_BY_KEY, stateProvinceId);
+            return await _cacheBase.GetAsync(key, () => _stateProvinceRepository.GetByIdAsync(stateProvinceId));
 
         }
 
@@ -105,8 +90,8 @@ namespace Grand.Services.Directory
         /// <returns>States</returns>
         public virtual async Task<IList<StateProvince>> GetStateProvincesByCountryId(string countryId, string languageId = "", bool showHidden = false)
         {
-            string key = string.Format(STATEPROVINCES_ALL_KEY, countryId, languageId, showHidden);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.STATEPROVINCES_ALL_KEY, countryId, languageId, showHidden);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var query = from sp in _stateProvinceRepository.Table
                             orderby sp.DisplayOrder, sp.Name
@@ -152,7 +137,7 @@ namespace Grand.Services.Directory
 
             await _stateProvinceRepository.InsertAsync(stateProvince);
 
-            await _cacheManager.RemoveByPrefix(STATEPROVINCES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.STATEPROVINCES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityInserted(stateProvince);
@@ -169,7 +154,7 @@ namespace Grand.Services.Directory
 
             await _stateProvinceRepository.UpdateAsync(stateProvince);
 
-            await _cacheManager.RemoveByPrefix(STATEPROVINCES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.STATEPROVINCES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityUpdated(stateProvince);

@@ -1,15 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Messages;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 
 namespace Grand.Web.Areas.Admin.Models.Messages
 {
-    [Validator(typeof(InteractiveFormAttributeValueValidator))]
-    public partial class InteractiveFormAttributeValueModel : BaseGrandEntityModel, ILocalizedModel<InteractiveFormAttributeValueLocalizedModel>
+    public partial class InteractiveFormAttributeValueModel : BaseEntityModel, ILocalizedModel<InteractiveFormAttributeValueLocalizedModel>
     {
         public InteractiveFormAttributeValueModel()
         {

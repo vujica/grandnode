@@ -1,29 +1,30 @@
-﻿using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    public partial class CustomerUserSettingsModel : BaseGrandModel
+    public partial class CustomerUserSettingsModel : BaseModel
     {
         public CustomerUserSettingsModel()
         {
             CustomerSettings = new CustomerSettingsModel();
             AddressSettings = new AddressSettingsModel();
             DateTimeSettings = new DateTimeSettingsModel();
-            ExternalAuthenticationSettings = new ExternalAuthenticationSettingsModel();
         }
         public CustomerSettingsModel CustomerSettings { get; set; }
         public AddressSettingsModel AddressSettings { get; set; }
         public DateTimeSettingsModel DateTimeSettings { get; set; }
-        public ExternalAuthenticationSettingsModel ExternalAuthenticationSettings { get; set; }
 
         #region Nested classes
 
-        public partial class CustomerSettingsModel : BaseGrandModel
+        public partial class CustomerSettingsModel : BaseModel
         {
+            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AllowUsersToChangeEmail")]
+            public bool AllowUsersToChangeEmail { get; set; }
+
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.UsernamesEnabled")]
             public bool UsernamesEnabled { get; set; }
 
@@ -36,11 +37,8 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.UserRegistrationType")]
             public int UserRegistrationType { get; set; }
 
-            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AllowCustomersToUploadAvatars")]
-            public bool AllowCustomersToUploadAvatars { get; set; }
-
-            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.DefaultAvatarEnabled")]
-            public bool DefaultAvatarEnabled { get; set; }
+            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.GeoEnabled")]
+            public bool GeoEnabled { get; set; }
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.ShowCustomersLocation")]
             public bool ShowCustomersLocation { get; set; }
@@ -75,6 +73,9 @@ namespace Grand.Web.Areas.Admin.Models.Settings
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.PasswordMinLength")]
             public int PasswordMinLength { get; set; }
+
+            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.PasswordRegularExpression")]
+            public string PasswordRegularExpression { get; set; }
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.UnduplicatedPasswordsNumber")]
             public int UnduplicatedPasswordsNumber { get; set; }
@@ -183,10 +184,13 @@ namespace Grand.Web.Areas.Admin.Models.Settings
 
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.TwoFactorAuthenticationType")]
             public int TwoFactorAuthenticationType { get; set; }
+           
+            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.HideSubaccountsTab")]
+            public bool HideSubaccountsTab { get; set; }
 
         }
 
-        public partial class AddressSettingsModel : BaseGrandModel
+        public partial class AddressSettingsModel : BaseModel
         {
             [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.AddressFormFields.CompanyEnabled")]
             public bool CompanyEnabled { get; set; }
@@ -235,7 +239,7 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public bool FaxRequired { get; set; }
         }
 
-        public partial class DateTimeSettingsModel : BaseGrandModel
+        public partial class DateTimeSettingsModel : BaseModel
         {
             public DateTimeSettingsModel()
             {
@@ -252,11 +256,6 @@ namespace Grand.Web.Areas.Admin.Models.Settings
             public IList<SelectListItem> AvailableTimeZones { get; set; }
         }
 
-        public partial class ExternalAuthenticationSettingsModel : BaseGrandModel
-        {
-            [GrandResourceDisplayName("Admin.Configuration.Settings.CustomerUser.ExternalAuthenticationAutoRegisterEnabled")]
-            public bool AutoRegisterEnabled { get; set; }
-        }
         #endregion
     }
 }

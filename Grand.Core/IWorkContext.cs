@@ -13,15 +13,21 @@ namespace Grand.Core
     public interface IWorkContext
     {
         /// <summary>
-        /// Gets or sets the current customer
+        /// Gets the current customer
         /// </summary>
-        Customer CurrentCustomer { get; set; }
+        Customer CurrentCustomer { get; }
 
         /// <summary>
         /// Set the current customer by Middleware
         /// </summary>
         /// <returns></returns>
         Task<Customer> SetCurrentCustomer();
+
+        /// <summary>
+        /// Set the current customer 
+        /// </summary>
+        /// <returns></returns>
+        Task<Customer> SetCurrentCustomer(Customer customer);
 
         /// <summary>
         /// Gets or sets the original customer (in case the current one is impersonated)

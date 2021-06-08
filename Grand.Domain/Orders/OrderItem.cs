@@ -1,6 +1,8 @@
+using Grand.Domain.Common;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System;
+using System.Collections.Generic;
 
 namespace Grand.Domain.Orders
 {
@@ -20,6 +22,11 @@ namespace Grand.Domain.Orders
         public string ProductId { get; set; }
 
         /// <summary>
+        /// Gets or sets the sku product identifier
+        /// </summary>
+        public string Sku { get; set; }
+
+        /// <summary>
         /// Gets or sets the vendor identifier
         /// </summary>
         public string VendorId { get; set; }
@@ -28,6 +35,11 @@ namespace Grand.Domain.Orders
         /// Gets or sets the warehouse identifier
         /// </summary>
         public string WarehouseId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sales employee identifier 
+        /// </summary>
+        public string SeId { get; set; }
 
         /// <summary>
         /// Gets or sets the quantity
@@ -96,7 +108,10 @@ namespace Grand.Domain.Orders
         /// <summary>
         /// Gets or sets the product attributes in XML format
         /// </summary>
+        [Obsolete("Will be removed in version 5.0.0 - this field was replaced by Attributes")]
         public string AttributesXml { get; set; }
+
+        public IList<CustomAttribute> Attributes { get; set; } = new List<CustomAttribute>();
 
         /// <summary>
         /// Gets or sets the download count
@@ -139,5 +154,6 @@ namespace Grand.Domain.Orders
         /// </summary>
         [BsonRepresentation(BsonType.Decimal128, AllowTruncation = true)]
         public decimal Commission { get; set; }
+
     }
 }

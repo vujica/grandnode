@@ -1,4 +1,5 @@
 using Grand.Domain.Catalog;
+using Grand.Domain.Common;
 using Grand.Domain.Customers;
 using Grand.Domain.Orders;
 using System;
@@ -56,17 +57,12 @@ namespace Grand.Services.Orders
         /// Validates shopping cart item attributes
         /// </summary>
         /// <param name="customer">Customer</param>
-        /// <param name="shoppingCartType">Shopping cart type</param>
         /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="shoppingCartItem">Shopping cart item</param>
         /// <param name="ignoreNonCombinableAttributes">A value indicating whether we should ignore non-combinable attributes</param>
         /// <returns>Warnings</returns>
         Task<IList<string>> GetShoppingCartItemAttributeWarnings(Customer customer, 
-            ShoppingCartType shoppingCartType,
-            Product product,
-            int quantity = 1,
-            string attributesXml = "",
+            Product product, ShoppingCartItem shoppingCartItem,
             bool ignoreNonCombinableAttributes = false);
         
         /// <summary>
@@ -74,10 +70,10 @@ namespace Grand.Services.Orders
         /// </summary>
         /// <param name="shoppingCartType">Shopping cart type</param>
         /// <param name="product">Product</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="Attributes">Attributes</param>
         /// <returns>Warnings</returns>
         IList<string> GetShoppingCartItemGiftCardWarnings(ShoppingCartType shoppingCartType,
-            Product product, string attributesXml);
+            Product product, IList<CustomAttribute> attributes);
 
         /// <summary>
         /// Validate bid
@@ -95,7 +91,7 @@ namespace Grand.Services.Orders
         /// <param name="shoppingCart">Shopping cart type</param>
         /// <param name="product">Product</param>
         /// <param name="storeId">Store identifier</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="attributes">Attributes</param>
         /// <param name="customerEnteredPrice">Customer entered price</param>
         /// <param name="rentalStartDate">Rental start date</param>
         /// <param name="rentalEndDate">Rental end date</param>
@@ -117,11 +113,11 @@ namespace Grand.Services.Orders
         /// Validates whether this shopping cart is valid
         /// </summary>
         /// <param name="shoppingCart">Shopping cart</param>
-        /// <param name="checkoutAttributesXml">Checkout attributes in XML format</param>
+        /// <param name="checkoutAttributes">Checkout attributes</param>
         /// <param name="validateCheckoutAttributes">A value indicating whether to validate checkout attributes</param>
         /// <returns>Warnings</returns>
         Task<IList<string>> GetShoppingCartWarnings(IList<ShoppingCartItem> shoppingCart,
-            string checkoutAttributesXml, bool validateCheckoutAttributes);
+            List<CustomAttribute> checkoutAttributes, bool validateCheckoutAttributes);
 
 
         /// <summary>
@@ -140,7 +136,7 @@ namespace Grand.Services.Orders
         /// <param name="shoppingCart">Shopping cart</param>
         /// <param name="shoppingCartType">Shopping cart type</param>
         /// <param name="product">Product</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="attributes">Attributes</param>
         /// <param name="customerEnteredPrice">Price entered by a customer</param>
         /// <param name="rentalStartDate">Rental start date</param>
         /// <param name="rentalEndDate">Rental end date</param>
@@ -149,8 +145,8 @@ namespace Grand.Services.Orders
             ShoppingCartType shoppingCartType,
             string productId,
             string warehouseId = null,
-            string attributesXml = "",
-            decimal customerEnteredPrice = decimal.Zero,
+            IList<CustomAttribute> attributes = null,
+            decimal? customerEnteredPrice = null,
             DateTime? rentalStartDate = null,
             DateTime? rentalEndDate = null);
 
@@ -162,7 +158,7 @@ namespace Grand.Services.Orders
         /// <param name="product">Product</param>
         /// <param name="shoppingCartType">Shopping cart type</param>
         /// <param name="storeId">Store identifier</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="attributes">Attributes</param>
         /// <param name="customerEnteredPrice">The price enter by a customer</param>
         /// <param name="rentalStartDate">Rental start date</param>
         /// <param name="rentalEndDate">Rental end date</param>
@@ -170,8 +166,8 @@ namespace Grand.Services.Orders
         /// <param name="automaticallyAddRequiredProductsIfEnabled">Automatically add required products if enabled</param>
         /// <returns>Warnings</returns>
         Task<IList<string>> AddToCart(Customer customer, string productId,
-            ShoppingCartType shoppingCartType, string storeId, string warehouseId = null, string attributesXml = null,
-            decimal customerEnteredPrice = decimal.Zero, 
+            ShoppingCartType shoppingCartType, string storeId, string warehouseId = null, IList<CustomAttribute> attributes = null,
+            decimal? customerEnteredPrice = null, 
             DateTime? rentalStartDate = null, DateTime? rentalEndDate = null,
             int quantity = 1, bool automaticallyAddRequiredProductsIfEnabled = true, string reservationId = "", string parameter = "", string duration = "");
         
@@ -180,7 +176,7 @@ namespace Grand.Services.Orders
         /// </summary>
         /// <param name="customer">Customer</param>
         /// <param name="shoppingCartItemId">Shopping cart item identifier</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
+        /// <param name="attributes">Attributes</param>
         /// <param name="customerEnteredPrice">New customer entered price</param>
         /// <param name="rentalStartDate">Rental start date</param>
         /// <param name="rentalEndDate">Rental end date</param>
@@ -188,8 +184,8 @@ namespace Grand.Services.Orders
         /// <param name="resetCheckoutData">A value indicating whether to reset checkout data</param>
         /// <returns>Warnings</returns>
         Task<IList<string>> UpdateShoppingCartItem(Customer customer,
-            string shoppingCartItemId, string warehouseId, string attributesXml,
-            decimal customerEnteredPrice,
+            string shoppingCartItemId, string warehouseId, IList<CustomAttribute> attributes,
+            decimal? customerEnteredPrice = null,
             DateTime? rentalStartDate = null, DateTime? rentalEndDate = null,
             int quantity = 1, bool resetCheckoutData = true, string reservationId = "", string sciId = "");
         

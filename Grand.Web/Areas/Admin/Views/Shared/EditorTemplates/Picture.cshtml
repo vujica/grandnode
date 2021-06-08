@@ -2,16 +2,18 @@
 @using Grand.Core;
 @using Grand.Framework.UI;
 @inject Grand.Services.Media.IPictureService pictureService
+@inject IPageHeadBuilder pagebuilder
 @{
     //register CSS and JS
-    Html.AddCssFileParts("~/scripts/fineuploader/fineuploader-4.2.2.min.css", excludeFromBundle:true);
-    Html.AddScriptParts("~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js", excludeFromBundle: true);
+    pagebuilder.AddCssFileParts(ResourceLocation.Head, "~/scripts/fineuploader/fineuploader-4.2.2.min.css", excludeFromBundle: true);
+    pagebuilder.AddScriptParts(ResourceLocation.Head, "~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js", excludeFromBundle: true);
 
     //other variables
     var random = CommonHelper.GenerateRandomInteger();
     var clientId = "picture" + random;
     var picture = await pictureService.GetPictureById(Model);
     var targetPictureSize = 100;
+
 }
 <div id="@(clientId + "value")">
     <input asp-for="@Model" type="hidden" />
@@ -74,10 +76,14 @@ else
 
         $("#@(clientId)").fineUploader({
             request: {
-                endpoint: '@(Url.Content("~/Admin/Picture/AsyncUpload"))'
+                endpoint: '@(Url.Action("AsyncUpload", "Picture"))'
             },
             template: "@(clientId)-qq-template",
-            multiple: false
+            multiple: false,
+            validation: {
+                itemLimit: 5,
+                acceptFiles: 'image/*',
+            }
         }).on("complete", function(event, id, name, responseJSON, xhr) {
             if (responseJSON.success) {
                 $("#@(clientId + "image")").html("<img src='" + responseJSON.imageUrl + "'/>");

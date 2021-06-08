@@ -15,9 +15,9 @@ namespace Grand.Domain.Orders
     /// </summary>
     public partial class Order : BaseEntity
     {
-
         private ICollection<OrderItem> _orderItems;
-
+        private ICollection<OrderTax> _orderTaxes;
+        private ICollection<string> _orderTags;
 
         #region Properties
 
@@ -50,6 +50,11 @@ namespace Grand.Domain.Orders
         /// Gets or sets the owner identifier
         /// </summary>
         public string OwnerId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sales employee identifier 
+        /// </summary>
+        public string SeId { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether a customer chose "pick up in store" shipping option
@@ -91,6 +96,12 @@ namespace Grand.Domain.Orders
         /// </summary>
         [BsonRepresentation(BsonType.Decimal128, AllowTruncation = true)]
         public decimal CurrencyRate { get; set; }
+
+        /// <summary>
+        /// Gets or sets the currency rate
+        /// </summary>
+        [BsonRepresentation(BsonType.Decimal128, AllowTruncation = true)]
+        public decimal Rate { get; set; }
 
         /// <summary>
         /// Gets or sets the customer tax display type identifier
@@ -176,11 +187,6 @@ namespace Grand.Domain.Orders
         public decimal PaymentMethodAdditionalFeeExclTax { get; set; }
 
         /// <summary>
-        /// Gets or sets the tax rates
-        /// </summary>
-        public string TaxRates { get; set; }
-
-        /// <summary>
         /// Gets or sets the order tax
         /// </summary>
         [BsonRepresentation(BsonType.Decimal128, AllowTruncation = true)]
@@ -217,9 +223,12 @@ namespace Grand.Domain.Orders
         /// </summary>
         public string CheckoutAttributeDescription { get; set; }
 
+        public IList<CustomAttribute> CheckoutAttributes { get; set; } = new List<CustomAttribute>();
+
         /// <summary>
         /// Gets or sets the checkout attributes in XML format
         /// </summary>
+        [Obsolete("Will be removed in version 5.0.0 - this field was replaced by CheckoutAttributes")]
         public string CheckoutAttributesXml { get; set; }
 
         /// <summary>
@@ -385,10 +394,26 @@ namespace Grand.Domain.Orders
         /// </summary>
         public virtual ICollection<OrderItem> OrderItems
         {
-            get { return _orderItems ?? (_orderItems = new List<OrderItem>()); }
+            get { return _orderItems ??= new List<OrderItem>(); }
             protected set { _orderItems = value; }
         }
 
+        /// <summary>
+        /// Gets or sets order taxes
+        /// </summary>
+        public virtual ICollection<OrderTax> OrderTaxes {
+            get { return _orderTaxes ??= new List<OrderTax>(); }
+            protected set { _orderTaxes = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the order's tags
+        /// </summary>
+        public virtual ICollection<string> OrderTags 
+        {
+            get { return _orderTags ??= new List<string>(); }
+            protected set { _orderTags = value; }
+        }
 
         #endregion
 
@@ -401,11 +426,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (OrderStatus)this.OrderStatusId;
+                return (OrderStatus)OrderStatusId;
             }
             set
             {
-                this.OrderStatusId = (int)value;
+                OrderStatusId = (int)value;
             }
         }
 
@@ -416,11 +441,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (PaymentStatus)this.PaymentStatusId;
+                return (PaymentStatus)PaymentStatusId;
             }
             set
             {
-                this.PaymentStatusId = (int)value;
+                PaymentStatusId = (int)value;
             }
         }
 
@@ -431,11 +456,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (ShippingStatus)this.ShippingStatusId;
+                return (ShippingStatus)ShippingStatusId;
             }
             set
             {
-                this.ShippingStatusId = (int)value;
+                ShippingStatusId = (int)value;
             }
         }
 
@@ -446,22 +471,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (TaxDisplayType)this.CustomerTaxDisplayTypeId;
+                return (TaxDisplayType)CustomerTaxDisplayTypeId;
             }
             set
             {
-                this.CustomerTaxDisplayTypeId = (int)value;
-            }
-        }
-
-        /// <summary>
-        /// Gets the applied tax rates
-        /// </summary>
-        public SortedDictionary<decimal, decimal> TaxRatesDictionary
-        {
-            get
-            {
-                return this.ParseTaxRates(this.TaxRates);
+                CustomerTaxDisplayTypeId = (int)value;
             }
         }
         

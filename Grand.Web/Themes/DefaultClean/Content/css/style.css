@@ -198,6 +198,12 @@ input {
         white-space: nowrap;
     }
 
+.store-closed-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
 /* Custom Select */
 
 .selectdiv {
@@ -749,6 +755,7 @@ body:not(.is-ready) .search-box-button {
         font-weight: 300;
         font-size: 14px;
         color: #212529;
+        text-align: left;
         text-overflow: ellipsis;
         white-space: pre-wrap;
         overflow: hidden;
@@ -875,6 +882,7 @@ ul.ui-autocomplete li {
     background: #0091b5;
     color: #fff;
     height: 43px;
+    min-height: 43px;
     text-transform: uppercase;
 }
 
@@ -1116,6 +1124,12 @@ ul.ui-autocomplete li {
 }
 
 #ModalQuickView {
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 0 !important;
+}
+
+#ModalPrivacyPreference {
     overflow-x: hidden;
     overflow-y: auto;
     padding-right: 0 !important;
@@ -1541,6 +1555,7 @@ a.read {
 
 .mfp-content img {
     width: auto;
+    background-color: #F8F9FB;
 }
 
 .img-wish {
@@ -2284,6 +2299,21 @@ list settings .list__item,
 .login-page .inputs {
     padding-left: 3px;
 }
+.register-button {
+    background-color: #ffffff;
+    color: #138496;
+}
+.register-button:hover {
+    background-color: #138496;
+    color: #ffffff;
+}
+.password-recovery-page, .login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    flex-direction: column;
+}
 /* reservations */
 
 #hoursDiv input {
@@ -2406,9 +2436,10 @@ list settings .list__item,
 }
 
 .product-box .picture {
-    display: flex;
+    display: block;
     align-items: center;
     position: relative;
+    overflow: hidden;
     height: 100%;
 }
 
@@ -2424,9 +2455,8 @@ list settings .list__item,
     right: 0;
     bottom: 0;
     left: 0;
-    width: auto;
+    width: 100%;
     max-width: 100%;
-    max-height: 100%;
     margin: auto;
 }
 
@@ -2459,6 +2489,7 @@ list settings .list__item,
 }
 
 .product-box .picture img {
+    background-color: #F8F9FB;
     -webkit-transition: .2s ease;
     -moz-transition: .2s ease;
     -o-transition: .2s ease;
@@ -2812,10 +2843,6 @@ list settings .list__item,
     border-bottom: 1px solid #dfdfdf;
 }
 
-    .product-box.list-box img {
-        bottom: unset;
-    }
-
     .product-box.list-box .additional-info {
         position: absolute;
         top: 0;
@@ -2930,6 +2957,12 @@ list settings .list__item,
     padding-left: 16px;
 }
 
+.navbar-nav .blank-link {
+    border-left: 2px solid #dddddd;
+    padding-left: 17px;
+    height: 25px;
+}
+
 .product-details-page .product-tabs .nav-link,
 #pills-mobile-tab .nav-item .nav-link {
     position: relative;
@@ -2962,6 +2995,8 @@ list settings .list__item,
 .product-details-page .short-description {
     color: #777;
     font-weight: 300;
+    font-size: 19px;
+    letter-spacing: 1px;
 }
 
 .product-contact-error,
@@ -3099,28 +3134,6 @@ list settings .list__item,
         font-weight: 500;
     }
 
-/*forum*/
-
-.forum-edit-page .forum-post-text {
-    min-height: 200px;
-}
-
-.forum-topic-page .forum-post {
-    border-right: 1px solid #d9d9d9;
-}
-
-.forum-edit-page .card textarea.form-control {
-    min-height: 200px;
-}
-
-.forums-table-section table tbody tr:nth-child(even) {
-    background-color: #f1f1f1;
-}
-
-.avatar {
-    overflow: hidden;
-    display: table-cell;
-}
 /*price*/
 
 .overview-buttons .prices {
@@ -3350,7 +3363,13 @@ ul.opc .order-summary-content h5 {
     flex-wrap: nowrap;
     margin-top: 15px;
 }
-
+.product-details-page .gallery {
+    display: flex;
+    align-items: flex-start;
+}
+.product-details-page .gallery img {
+    background-color: #F8F9FB;
+}
     .product-details-page .sp-thumbs a {
         margin-right: 5px;
     }
@@ -3369,13 +3388,14 @@ ul.opc .order-summary-content h5 {
         }
 
 .product-details-page .thumbnails {
-    display: inline-flex;
+    display: flex;
     flex-wrap: wrap;
-    margin: 15px 0;
+    margin: 0px 15px;
+    flex-direction: column;
 }
 
     .product-details-page .thumbnails .thumb-popup-link {
-        margin-right: 5px;
+        margin-bottom: 5px;
     }
 
     .product-details-page .thumbnails img {
@@ -4001,7 +4021,9 @@ valid mgs .input-validation-error {
         min-width: 90px;
         padding: 20px;
     }
-
+    .shopping-cart td img {
+        background-color: #F8F9FB;
+    }
         .shopping-cart td:last-child {
             border-right: 0 !important;
             text-align: center;
@@ -4547,6 +4569,9 @@ valid mgs .input-validation-error {
         border-bottom: 1px solid #dddddd;
         padding: 15px !important;
     }
+    .flyout-cart .item img {
+	background-color: #F8F9FB;
+}
 
         .flyout-cart .item:last-of-type {
             border-bottom: none;
@@ -4754,14 +4779,8 @@ span.product-quantity {
 /*footer*/
 
 footer {
-    background-color: #fff;
-    width: 100%;
-    display: inline-block;
-    height: auto;
+    margin: 15px 0 0 0;
     padding: 45px 0 0 0;
-}
-
-footer {
     background-color: #fff;
     width: 100%;
     display: inline-block;
@@ -5410,6 +5429,9 @@ footer .socicon-pinterest:hover {
 }
 
 @media (min-width: 992px) {
+    .w-lg-auto {
+        width: auto !important;
+    }
     .formSearch {
         -ms-flex-preferred-size: 0;
         flex-basis: 0;
@@ -5637,10 +5659,6 @@ footer .socicon-pinterest:hover {
         width: 49%;
     }
 
-    .forum-topic-page .post-user {
-        border-right: 1px solid #d9d9d9;
-    }
-
     .shopping-cart tr:nth-child(2n+1) {
         clear: both;
         margin-left: 0;
@@ -5692,18 +5710,55 @@ footer .socicon-pinterest:hover {
         transition: transform .2s ease;
         z-index: 1037;
     }
-
-    body.scroll-down:not(.onTop) header {
-        -webkit-transform: translateY(-100%);
-        transform: translateY(-100%);
+    #back-to-top {
+        bottom: 75px;
+    }
+    .footer-clean + #back-to-top {
+        bottom: 15px;
+    }
+    .shopping-links {
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: space-between;
     }
 
-    body.scroll-up header,
-    body.onTop header {
-        -webkit-transform: translateY(0);
-        transform: translateY(0);
+    .side-panel {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 60px;
+        background: #fff;
+        box-shadow: 0 -6px 10px -8px #999;
+        border-top: 1px solid #ddd;
+        z-index: 1040;
     }
-
+    .side-panel .js-offcanvas-trigger {
+        width: 25%;
+        border-right: 1px solid #ddd;
+    }
+    .search-box-button {
+        border: 1px solid rgba(0,0,0,.15);
+        background-color: transparent;
+        border-left: 0;
+        color: #666;
+    }
+    #small-searchterms:focus ~ .input-group-append .search-box-button {
+        border-color: #0093B5;
+        box-shadow: 0 2px 6px 0 rgba(0,0,0,0.12);
+    }
+    #topcartlink .js-offcanvas-trigger {
+        border-right: 0;
+    }
+    #small-searchterms {
+        margin: 0;
+        border-right: 0;
+    }
+    #small-searchterms:focus ~ .input-group-append .search-box-button {
+        border-color: #0093B5;
+        box-shadow: 0 2px 6px 0 rgba(0,0,0,0.12);
+    }
     .product-details-page .add-to-cart-button {
         width: calc(100% - 80px);
         height: auto;
@@ -5734,8 +5789,13 @@ footer .socicon-pinterest:hover {
         -webkit-overflow-scrolling: touch;
     }
 
-    #topcartlink .cart-qty, .wishlist-qty {
+    #topcartlink .cart-qty {
+        top: 5px;
         left: 30px;
+    }
+    .wishlist-qty {
+        top: 5px;
+        left: 45px;
     }
 
     .categoryGrid .flex-grid,
@@ -5761,7 +5821,10 @@ footer .socicon-pinterest:hover {
     }
 
     .shopping-links .nav-link {
-        padding: 0 0 0 .5rem;
+        position: relative;
+        padding: 0 20px;
+        height: 100%;
+        justify-content: center;
     }
 
     #mobile_menu .navbar-collapse {
@@ -5838,7 +5901,7 @@ footer .socicon-pinterest:hover {
     }
 
     .header-logo img {
-        max-height: 65px;
+        max-height: 70px;
     }
 
     .user-panel-trigger .mdi {
@@ -5849,10 +5912,6 @@ footer .socicon-pinterest:hover {
     .shopping-links .nav-link .mdi {
         font-size: 28px;
         color: #000;
-    }
-
-    #small-search-box-form {
-        display: none;
     }
 
     #searchModal #small-search-box-form {
@@ -6148,7 +6207,11 @@ footer .socicon-pinterest:hover {
     }
 
     .advanced-search-results.open {
-        top: 60px;
+        top: 46px;
+        left: unset;
+        right: 15px;
+        width: calc(100vw - 30px);
+        max-width: 540px;
     }
 
     .category-icon {
@@ -6188,12 +6251,20 @@ footer .socicon-pinterest:hover {
 
     .wishlist-container {
         order: 2;
+        width: 50%;
+        height: 100%;
+        text-align: center;
+        border-right: 1px solid #ddd;
     }
 
     #topcartlink {
+        width: 50%;
+        height: 100%;
         order: 3;
-        margin-left: auto;
         padding-right: 0;
+    }
+    #topcartlink .btn-group.dropdown {
+        height: 100%;
     }
 
     .navUp .container.fly-in {
@@ -6353,7 +6424,9 @@ footer .socicon-pinterest:hover {
         min-height: 130px;
     }
 
-    footer {
+    footer:not(.footer-clean) {
+        transform: translateY(-60px);
+        margin-top: 75px !important;
         padding: 0;
     }
 
@@ -6692,10 +6765,7 @@ footer .socicon-pinterest:hover {
         min-height: 225px;
     }
 
-    .forum-topic-page ul.user-stats {
-        border-right: none;
-    }
-
+    
     .topic-posts .send-pm {
         border-bottom: 1px solid #dddddd;
     }
@@ -6764,10 +6834,7 @@ footer .socicon-pinterest:hover {
         display: none;
     }
 
-    .forum-media-header {
-        max-height: 38px;
-    }
-
+    
     .product-quantity,
     .form-control.qty-input {
         max-width: 100px;
@@ -6828,10 +6895,7 @@ footer .socicon-pinterest:hover {
         min-height: 225px;
     }
 
-    .forum-topic-page ul.user-stats {
-        border-right: none;
-    }
-
+    
     .topic-posts .send-pm {
         border-bottom: 1px solid #dddddd;
     }
@@ -6914,6 +6978,10 @@ footer .socicon-pinterest:hover {
 }
 
 @media (max-width: 575px) {
+    .advanced-search-results .title {
+        font-size: 20px;
+        font-weight: 500;
+    }
     .nav-tabs .nav-link {
         padding: 8px 10px;
     }

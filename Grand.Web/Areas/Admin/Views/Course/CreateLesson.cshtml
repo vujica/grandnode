@@ -3,7 +3,7 @@
     //page title
     ViewBag.Title = T("Admin.Courses.Course.Lesson.AddNew").Text;
 }
-<form asp-area="Admin" asp-controller="Course" asp-action="CreateLesson" method="post" id="course-lesson-form">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Course" asp-action="CreateLesson" method="post" id="course-lesson-form">
     <input asp-for="CourseId" type="hidden" />
     
     <div class="row">
@@ -23,7 +23,7 @@
                     </div>
                 </div>
                 <vc:admin-widget widget-zone="course_lesson_details_buttons" additional-data="null" />
-                <div class="x_content form k-content">
+                <div class="x_content form">
                     <partial name="_Lesson" model="Model" />
                 </div>
             </div>

@@ -1,18 +1,20 @@
 ﻿@model CustomerInfoModel
 @inject Grand.Domain.Customers.CustomerSettings customerSettings
+@inject IPageHeadBuilder pagebuilder
 @using Grand.Web.Models.Customer;
 @using Grand.Core;
 @{
     Layout = "_ColumnsTwo";
 
     //title
-    Html.AddTitleParts(T("PageTitle.Account").Text);
+    pagebuilder.AddTitleParts(T("PageTitle.Account").Text);
+
 }
 @section left
-    {
+{
     @await Component.InvokeAsync("CustomerNavigation", new { selectedTabId = CustomerNavigationEnum.Info })
 }
-
+<vc:widget widget-zone="customer-info-before" additional-data="@Model"></vc:widget>
 @if (Model.CountryEnabled && Model.StateProvinceEnabled)
 {
     <script asp-location="Footer">
@@ -142,7 +144,7 @@
                     <div class="col-12">
                         <label asp-for="Email" class="col-form-label">@T("Account.Fields.Email"):</label>
                         <span class="required">*</span>
-                        <input asp-for="Email" class="form-control" />
+                        <input asp-for="Email" class="form-control" asp-readonly=@(!Model.AllowUsersToChangeEmail) />
                         <span asp-validation-for="Email"></span>
                     </div>
                 </fieldset>
@@ -207,10 +209,10 @@
             </div>
         }
         @if (Model.StreetAddressEnabled ||
-      Model.StreetAddress2Enabled ||
-      Model.ZipPostalCodeEnabled ||
-      Model.CityEnabled ||
-      Model.CountryEnabled)
+  Model.StreetAddress2Enabled ||
+  Model.ZipPostalCodeEnabled ||
+  Model.CityEnabled ||
+  Model.CountryEnabled)
         {
             <div class="card mb-3">
                 <h3 class="card-header">
@@ -369,29 +371,18 @@
                 </div>
             </div>
         }
-        @if (Model.AllowCustomersToSetTimeZone || Model.SignatureEnabled)
+        @if (Model.AllowCustomersToSetTimeZone)
         {
             <div class="card mb-3">
                 <h3 class="card-header">@T("Account.Preferences")</h3>
                 <div class="card-body">
                     <fieldset class="form-fields">
                         <legend class="sr-only">@T("account.fields.timezone")</legend>
-                        @if (Model.AllowCustomersToSetTimeZone)
-                        {
                             <div class="form-group">
                                 <label asp-for="TimeZoneId" class="col-form-label">@T("Account.Fields.TimeZone"):</label>
                                 <select asp-for="TimeZoneId" class="custom-select form-control" asp-items="Model.AvailableTimeZones"></select>
                                 <span asp-validation-for="TimeZoneId"></span>
                             </div>
-                        }
-
-                        @if (Model.SignatureEnabled)
-                        {
-                            <div class="form-group">
-                                <label asp-for="Signature" class="col-form-label">@T("Account.Fields.Signature"):</label>
-                                <textarea asp-for="Signature" class="form-control account-signature-text"></textarea>
-                            </div>
-                        }
                     </fieldset>
                 </div>
             </div>
@@ -475,11 +466,13 @@
                 }
             </div>
         }
+        <vc:widget widget-zone="customer-info-form" additional-data="@Model"></vc:widget>
         <div class="generalMarginSupporter">
             <input type="submit" value="@T("Common.Save")" name="save-info-button" class="btn btn-secondary save-customer-info-button" />
         </div>
     </form>
 </div>
+<vc:widget widget-zone="customer-info-after" additional-data="@Model"></vc:widget>
 
 <script asp-location="Footer">
     function removeexternalassociation(itemId) {

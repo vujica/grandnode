@@ -1,13 +1,12 @@
 ﻿using Grand.Core;
+using Grand.Core.Plugins;
 using Grand.Domain.Directory;
 using Grand.Domain.Shipping;
-using Grand.Core.Plugins;
 using Grand.Framework.Kendoui;
 using Grand.Framework.Mvc;
 using Grand.Framework.Mvc.Filters;
 using Grand.Framework.Mvc.Models;
 using Grand.Framework.Security.Authorization;
-using Grand.Services.Common;
 using Grand.Services.Configuration;
 using Grand.Services.Customers;
 using Grand.Services.Directory;
@@ -34,9 +33,12 @@ namespace Grand.Web.Areas.Admin.Controllers
         #region Fields
 
         private readonly IShippingService _shippingService;
+        private readonly IShippingMethodService _shippingMethodService;
+        private readonly IPickupPointService _pickupPointService;
+        private readonly IDeliveryDateService _deliveryDateService;
+        private readonly IWarehouseService _warehouseService;
         private readonly ShippingSettings _shippingSettings;
         private readonly ISettingService _settingService;
-        private readonly IAddressService _addressService;
         private readonly ICountryService _countryService;
         private readonly IStateProvinceService _stateProvinceService;
         private readonly ILocalizationService _localizationService;
@@ -50,10 +52,14 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Constructors
 
-        public ShippingController(IShippingService shippingService,
+        public ShippingController(
+            IShippingService shippingService,
+            IShippingMethodService shippingMethodService,
+            IPickupPointService pickupPointService,
+            IDeliveryDateService deliveryDateService,
+            IWarehouseService warehouseService,
             ShippingSettings shippingSettings,
             ISettingService settingService,
-            IAddressService addressService,
             ICountryService countryService,
             IStateProvinceService stateProvinceService,
             ILocalizationService localizationService,
@@ -64,9 +70,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             ICustomerService customerService)
         {
             _shippingService = shippingService;
+            _shippingMethodService = shippingMethodService;
+            _pickupPointService = pickupPointService;
+            _deliveryDateService = deliveryDateService;
+            _warehouseService = warehouseService;
             _shippingSettings = shippingSettings;
             _settingService = settingService;
-            _addressService = addressService;
             _countryService = countryService;
             _stateProvinceService = stateProvinceService;
             _localizationService = localizationService;
@@ -137,7 +146,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 model.AvailableStores.Add(new SelectListItem { Text = c.Shortcut, Value = c.Id.ToString() });
 
             model.AvailableWarehouses.Add(new SelectListItem { Text = _localizationService.GetResource("Admin.Configuration.Shipping.PickupPoint.SelectWarehouse"), Value = "" });
-            foreach (var c in await _shippingService.GetAllWarehouses())
+            foreach (var c in await _warehouseService.GetAllWarehouses())
                 model.AvailableWarehouses.Add(new SelectListItem { Text = c.Name, Value = c.Id.ToString() });
 
         }
@@ -162,8 +171,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 shippingProvidersModel.Add(tmp1);
             }
             shippingProvidersModel = shippingProvidersModel.ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = shippingProvidersModel,
                 Total = shippingProvidersModel.Count()
             };
@@ -196,7 +204,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             var pluginDescriptor = srcm.PluginDescriptor;
             //display order
             pluginDescriptor.DisplayOrder = model.DisplayOrder;
-            PluginFileParser.SavePluginDescriptionFile(pluginDescriptor);
+            PluginFileParser.SavePluginConfigFile(pluginDescriptor);
             //reset plugin cache
             _pluginFinder.ReloadPlugins();
 
@@ -227,11 +235,10 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> Methods(DataSourceRequest command)
         {
-            var shippingMethodsModel = (await _shippingService.GetAllShippingMethods())
+            var shippingMethodsModel = (await _shippingMethodService.GetAllShippingMethods())
                 .Select(x => x.ToModel())
                 .ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = shippingMethodsModel,
                 Total = shippingMethodsModel.Count
             };
@@ -254,7 +261,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 var sm = model.ToEntity();
-                await _shippingService.InsertShippingMethod(sm);
+                await _shippingMethodService.InsertShippingMethod(sm);
 
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.Methods.Added"));
                 return continueEditing ? RedirectToAction("EditMethod", new { id = sm.Id }) : RedirectToAction("Methods");
@@ -266,7 +273,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public async Task<IActionResult> EditMethod(string id)
         {
-            var sm = await _shippingService.GetShippingMethodById(id);
+            var sm = await _shippingMethodService.GetShippingMethodById(id);
             if (sm == null)
                 //No shipping method found with the specified id
                 return RedirectToAction("Methods");
@@ -285,7 +292,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> EditMethod(ShippingMethodModel model, bool continueEditing)
         {
-            var sm = await _shippingService.GetShippingMethodById(model.Id);
+            var sm = await _shippingMethodService.GetShippingMethodById(model.Id);
             if (sm == null)
                 //No shipping method found with the specified id
                 return RedirectToAction("Methods");
@@ -293,7 +300,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 sm = model.ToEntity(sm);
-                await _shippingService.UpdateShippingMethod(sm);
+                await _shippingMethodService.UpdateShippingMethod(sm);
 
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.Methods.Updated"));
                 return continueEditing ? RedirectToAction("EditMethod", new { id = sm.Id }) : RedirectToAction("Methods");
@@ -305,12 +312,12 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> DeleteMethod(string id)
         {
-            var sm = await _shippingService.GetShippingMethodById(id);
+            var sm = await _shippingMethodService.GetShippingMethodById(id);
             if (sm == null)
                 //No shipping method found with the specified id
                 return RedirectToAction("Methods");
 
-            await _shippingService.DeleteShippingMethod(sm);
+            await _shippingMethodService.DeleteShippingMethod(sm);
 
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.Methods.Deleted"));
             return RedirectToAction("Methods");
@@ -325,11 +332,10 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> DeliveryDates(DataSourceRequest command)
         {
-            var deliveryDatesModel = (await _shippingService.GetAllDeliveryDates())
+            var deliveryDatesModel = (await _deliveryDateService.GetAllDeliveryDates())
                 .Select(x => x.ToModel())
                 .ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = deliveryDatesModel,
                 Total = deliveryDatesModel.Count
             };
@@ -339,8 +345,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public async Task<IActionResult> CreateDeliveryDate()
         {
-            var model = new DeliveryDateModel
-            {
+            var model = new DeliveryDateModel {
                 ColorSquaresRgb = "#000000"
             };
             //locales
@@ -354,7 +359,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 var deliveryDate = model.ToEntity();
-                await _shippingService.InsertDeliveryDate(deliveryDate);
+                await _deliveryDateService.InsertDeliveryDate(deliveryDate);
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.DeliveryDates.Added"));
                 return continueEditing ? RedirectToAction("EditDeliveryDate", new { id = deliveryDate.Id }) : RedirectToAction("DeliveryDates");
             }
@@ -365,7 +370,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public async Task<IActionResult> EditDeliveryDate(string id)
         {
-            var deliveryDate = await _shippingService.GetDeliveryDateById(id);
+            var deliveryDate = await _deliveryDateService.GetDeliveryDateById(id);
             if (deliveryDate == null)
                 //No delivery date found with the specified id
                 return RedirectToAction("DeliveryDates");
@@ -389,7 +394,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> EditDeliveryDate(DeliveryDateModel model, bool continueEditing)
         {
-            var deliveryDate = await _shippingService.GetDeliveryDateById(model.Id);
+            var deliveryDate = await _deliveryDateService.GetDeliveryDateById(model.Id);
             if (deliveryDate == null)
                 //No delivery date found with the specified id
                 return RedirectToAction("DeliveryDates");
@@ -397,7 +402,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 deliveryDate = model.ToEntity(deliveryDate);
-                await _shippingService.UpdateDeliveryDate(deliveryDate);
+                await _deliveryDateService.UpdateDeliveryDate(deliveryDate);
                 //locales
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.DeliveryDates.Updated"));
                 return continueEditing ? RedirectToAction("EditDeliveryDate", new { id = deliveryDate.Id }) : RedirectToAction("DeliveryDates");
@@ -411,13 +416,13 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> DeleteDeliveryDate(string id)
         {
-            var deliveryDate = await _shippingService.GetDeliveryDateById(id);
+            var deliveryDate = await _deliveryDateService.GetDeliveryDateById(id);
             if (deliveryDate == null)
                 //No delivery date found with the specified id
                 return RedirectToAction("DeliveryDates");
             if (ModelState.IsValid)
             {
-                await _shippingService.DeleteDeliveryDate(deliveryDate);
+                await _deliveryDateService.DeleteDeliveryDate(deliveryDate);
 
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.DeliveryDates.Deleted"));
                 return RedirectToAction("DeliveryDates");
@@ -435,11 +440,10 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> Warehouses(DataSourceRequest command)
         {
-            var warehousesModel = (await _shippingService.GetAllWarehouses())
+            var warehousesModel = (await _warehouseService.GetAllWarehouses())
                 .Select(x => x.ToModel())
                 .ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = warehousesModel,
                 Total = warehousesModel.Count
             };
@@ -458,12 +462,11 @@ namespace Grand.Web.Areas.Admin.Controllers
         {
             if (ModelState.IsValid)
             {
+                var warehouse = model.ToEntity();
                 var address = model.Address.ToEntity();
                 address.CreatedOnUtc = DateTime.UtcNow;
-                await _addressService.InsertAddressSettings(address);
-                var warehouse = model.ToEntity();
-                warehouse.AddressId = address.Id;
-                await _shippingService.InsertWarehouse(warehouse);
+                warehouse.Address = address;
+                await _warehouseService.InsertWarehouse(warehouse);
 
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.Warehouses.Added"));
                 return continueEditing ? RedirectToAction("EditWarehouse", new { id = warehouse.Id }) : RedirectToAction("Warehouses");
@@ -476,17 +479,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public async Task<IActionResult> EditWarehouse(string id)
         {
-            var warehouse = await _shippingService.GetWarehouseById(id);
+            var warehouse = await _warehouseService.GetWarehouseById(id);
             if (warehouse == null)
                 //No warehouse found with the specified id
                 return RedirectToAction("Warehouses");
 
-            var address = await _addressService.GetAddressByIdSettings(warehouse.AddressId);
             var model = warehouse.ToModel();
-            if (address != null)
-            {
-                model.Address = await address.ToModel(_countryService, _stateProvinceService);
-            }
             await PrepareAddressWarehouseModel(model);
             return View(model);
         }
@@ -494,26 +492,15 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> EditWarehouse(WarehouseModel model, bool continueEditing)
         {
-            var warehouse = await _shippingService.GetWarehouseById(model.Id);
+            var warehouse = await _warehouseService.GetWarehouseById(model.Id);
             if (warehouse == null)
                 //No warehouse found with the specified id
                 return RedirectToAction("Warehouses");
 
             if (ModelState.IsValid)
             {
-                var address = await _addressService.GetAddressByIdSettings(warehouse.AddressId) ??
-                    new Domain.Common.Address
-                    {
-                        CreatedOnUtc = DateTime.UtcNow,
-                    };
-                address = model.Address.ToEntity(address);
-                if (!String.IsNullOrEmpty(address.Id))
-                    await _addressService.UpdateAddressSettings(address);
-                else
-                    await _addressService.InsertAddressSettings(address);
-
                 warehouse = model.ToEntity(warehouse);
-                await _shippingService.UpdateWarehouse(warehouse);
+                await _warehouseService.UpdateWarehouse(warehouse);
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.Warehouses.Updated"));
                 return continueEditing ? RedirectToAction("EditWarehouse", new { id = warehouse.Id }) : RedirectToAction("Warehouses");
             }
@@ -526,12 +513,12 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> DeleteWarehouse(string id)
         {
-            var warehouse = await _shippingService.GetWarehouseById(id);
+            var warehouse = await _warehouseService.GetWarehouseById(id);
             if (warehouse == null)
                 //No warehouse found with the specified id
                 return RedirectToAction("Warehouses");
 
-            await _shippingService.DeleteWarehouse(warehouse);
+            await _warehouseService.DeleteWarehouse(warehouse);
 
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.warehouses.Deleted"));
             return RedirectToAction("Warehouses");
@@ -546,12 +533,11 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> PickupPoints(DataSourceRequest command)
         {
-            var pickupPointsModel = (await _shippingService.GetAllPickupPoints())
+            var pickupPointsModel = (await _pickupPointService.GetAllPickupPoints())
                 .Select(x => x.ToModel())
                 .ToList();
 
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = pickupPointsModel,
                 Total = pickupPointsModel.Count
             };
@@ -572,12 +558,8 @@ namespace Grand.Web.Areas.Admin.Controllers
         {
             if (ModelState.IsValid)
             {
-                var address = model.Address.ToEntity();
-                address.CreatedOnUtc = DateTime.UtcNow;
-                await _addressService.InsertAddressSettings(address);
                 var pickuppoint = model.ToEntity();
-                pickuppoint.Address = address;
-                await _shippingService.InsertPickupPoint(pickuppoint);
+                await _pickupPointService.InsertPickupPoint(pickuppoint);
 
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.PickupPoints.Added"));
                 return continueEditing ? RedirectToAction("EditPickupPoint", new { id = pickuppoint.Id }) : RedirectToAction("PickupPoints");
@@ -590,13 +572,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public async Task<IActionResult> EditPickupPoint(string id)
         {
-            var pickuppoint = await _shippingService.GetPickupPointById(id);
+            var pickuppoint = await _pickupPointService.GetPickupPointById(id);
             if (pickuppoint == null)
                 //No pickup pint found with the specified id
                 return RedirectToAction("PickupPoints");
 
             var model = pickuppoint.ToModel();
-            model.Address = await pickuppoint.Address.ToModel(_countryService, _stateProvinceService);
             await PreparePickupPointModel(model);
 
             return View(model);
@@ -605,18 +586,16 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> EditPickupPoint(PickupPointModel model, bool continueEditing)
         {
-            var pickupPoint = await _shippingService.GetPickupPointById(model.Id);
+            var pickupPoint = await _pickupPointService.GetPickupPointById(model.Id);
             if (pickupPoint == null)
                 //No pickup point found with the specified id
                 return RedirectToAction("PickupPoints");
 
             if (ModelState.IsValid)
             {
-                var address = new Domain.Common.Address { CreatedOnUtc = DateTime.UtcNow };
-                address = model.Address.ToEntity(address);
                 pickupPoint = model.ToEntity(pickupPoint);
-                pickupPoint.Address = address;
-                await _shippingService.UpdatePickupPoint(pickupPoint);
+                await _pickupPointService.UpdatePickupPoint(pickupPoint);
+
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.PickupPoints.Updated"));
                 return continueEditing ? RedirectToAction("EditPickupPoint", new { id = pickupPoint.Id }) : RedirectToAction("PickupPoints");
             }
@@ -628,12 +607,12 @@ namespace Grand.Web.Areas.Admin.Controllers
         [HttpPost]
         public async Task<IActionResult> DeletePickupPoint(string id)
         {
-            var pickupPoint = await _shippingService.GetPickupPointById(id);
+            var pickupPoint = await _pickupPointService.GetPickupPointById(id);
             if (pickupPoint == null)
                 //No pickup point found with the specified id
                 return RedirectToAction("PickupPoints");
 
-            await _shippingService.DeletePickupPoint(pickupPoint);
+            await _pickupPointService.DeletePickupPoint(pickupPoint);
 
             SuccessNotification(_localizationService.GetResource("Admin.Configuration.Shipping.PickupPoints.Deleted"));
             return RedirectToAction("PickupPoints");
@@ -648,21 +627,19 @@ namespace Grand.Web.Areas.Admin.Controllers
             var model = new ShippingMethodRestrictionModel();
 
             var countries = await _countryService.GetAllCountries(showHidden: true);
-            var shippingMethods = await _shippingService.GetAllShippingMethods();
+            var shippingMethods = await _shippingMethodService.GetAllShippingMethods();
             var customerRoles = await _customerService.GetAllCustomerRoles();
 
             foreach (var country in countries)
             {
-                model.AvailableCountries.Add(new CountryModel
-                {
+                model.AvailableCountries.Add(new CountryModel {
                     Id = country.Id,
                     Name = country.Name
                 });
             }
             foreach (var sm in shippingMethods)
             {
-                model.AvailableShippingMethods.Add(new ShippingMethodModel
-                {
+                model.AvailableShippingMethods.Add(new ShippingMethodModel {
                     Id = sm.Id,
                     Name = sm.Name
                 });
@@ -703,7 +680,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public async Task<IActionResult> RestrictionSave(IFormCollection form)
         {
             var countries = await _countryService.GetAllCountries(showHidden: true);
-            var shippingMethods = await _shippingService.GetAllShippingMethods();
+            var shippingMethods = await _shippingMethodService.GetAllShippingMethods();
             var customerRoles = await _customerService.GetAllCustomerRoles();
 
             foreach (var shippingMethod in shippingMethods)
@@ -724,15 +701,15 @@ namespace Grand.Web.Areas.Admin.Controllers
                         if (shippingMethod.RestrictedCountries.FirstOrDefault(c => c.Id == country.Id) == null)
                         {
                             shippingMethod.RestrictedCountries.Add(country);
-                            await _shippingService.UpdateShippingMethod(shippingMethod);
+                            await _shippingMethodService.UpdateShippingMethod(shippingMethod);
                         }
                     }
                     else
                     {
                         if (shippingMethod.RestrictedCountries.FirstOrDefault(c => c.Id == country.Id) != null)
                         {
-                            shippingMethod.RestrictedCountries.Remove(shippingMethod.RestrictedCountries.FirstOrDefault(x=>x.Id ==  country.Id));
-                            await _shippingService.UpdateShippingMethod(shippingMethod);
+                            shippingMethod.RestrictedCountries.Remove(shippingMethod.RestrictedCountries.FirstOrDefault(x => x.Id == country.Id));
+                            await _shippingMethodService.UpdateShippingMethod(shippingMethod);
                         }
                     }
                 }
@@ -754,7 +731,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                         if (shippingMethod.RestrictedRoles.FirstOrDefault(c => c == role.Id) == null)
                         {
                             shippingMethod.RestrictedRoles.Add(role.Id);
-                            await _shippingService.UpdateShippingMethod(shippingMethod);
+                            await _shippingMethodService.UpdateShippingMethod(shippingMethod);
                         }
                     }
                     else
@@ -762,7 +739,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                         if (shippingMethod.RestrictedRoles.FirstOrDefault(c => c == role.Id) != null)
                         {
                             shippingMethod.RestrictedRoles.Remove(role.Id);
-                            await _shippingService.UpdateShippingMethod(shippingMethod);
+                            await _shippingMethodService.UpdateShippingMethod(shippingMethod);
                         }
                     }
                 }

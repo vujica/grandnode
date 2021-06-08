@@ -1,4 +1,5 @@
-﻿using Grand.Services.Catalog;
+﻿using Grand.Domain.Customers;
+using Grand.Services.Catalog;
 using Grand.Services.Directory;
 using Grand.Services.Helpers;
 using Grand.Services.Localization;
@@ -18,16 +19,16 @@ namespace Grand.Web.Features.Handlers.Orders
         private readonly IOrderService _orderService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly ILocalizationService _localizationService;
-        private readonly IOrderProcessingService _orderProcessingService;
+        private readonly IOrderRecurringPayment _orderRecurringPayment;
         private readonly ICurrencyService _currencyService;
         private readonly IPriceFormatter _priceFormatter;
         private readonly IMediator _mediator;
 
         public GetCustomerOrderListHandler(
-            IOrderService orderService, 
+            IOrderService orderService,
             IDateTimeHelper dateTimeHelper,
-            ILocalizationService localizationService, 
-            IOrderProcessingService orderProcessingService,
+            ILocalizationService localizationService,
+            IOrderRecurringPayment orderRecurringPayment,
             ICurrencyService currencyService,
             IMediator mediator,
             IPriceFormatter priceFormatter)
@@ -35,7 +36,7 @@ namespace Grand.Web.Features.Handlers.Orders
             _orderService = orderService;
             _dateTimeHelper = dateTimeHelper;
             _localizationService = localizationService;
-            _orderProcessingService = orderProcessingService;
+            _orderRecurringPayment = orderRecurringPayment;
             _currencyService = currencyService;
             _priceFormatter = priceFormatter;
             _mediator = mediator;
@@ -51,8 +52,16 @@ namespace Grand.Web.Features.Handlers.Orders
 
         private async Task PrepareOrder(CustomerOrderListModel model, GetCustomerOrderList request)
         {
-            var orders = await _orderService.SearchOrders(storeId: request.Store.Id,
-                customerId: request.Customer.Id);
+            var query = new GetOrderQuery {
+                StoreId = request.Store.Id
+            };
+
+            if (!request.Customer.IsOwner())
+                query.CustomerId = request.Customer.Id;
+            else
+                query.OwnerId = request.Customer.Id;
+
+            var orders = await _mediator.Send(query);
 
             foreach (var order in orders)
             {
@@ -60,6 +69,7 @@ namespace Grand.Web.Features.Handlers.Orders
                     Id = order.Id,
                     OrderNumber = order.OrderNumber,
                     OrderCode = order.Code,
+                    CustomerEmail = order.BillingAddress?.Email,
                     CreatedOn = _dateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc),
                     OrderStatusEnum = order.OrderStatus,
                     OrderStatus = order.OrderStatus.GetLocalizedEnum(_localizationService, request.Language.Id),
@@ -67,8 +77,7 @@ namespace Grand.Web.Features.Handlers.Orders
                     ShippingStatus = order.ShippingStatus.GetLocalizedEnum(_localizationService, request.Language.Id),
                     IsReturnRequestAllowed = await _mediator.Send(new IsReturnRequestAllowedQuery() { Order = order })
                 };
-                var orderTotalInCustomerCurrency = _currencyService.ConvertCurrency(order.OrderTotal, order.CurrencyRate);
-                orderModel.OrderTotal = await _priceFormatter.FormatPrice(orderTotalInCustomerCurrency, true, order.CustomerCurrencyCode, false, request.Language);
+                orderModel.OrderTotal = await _priceFormatter.FormatPrice(order.OrderTotal, true, order.CustomerCurrencyCode, false, request.Language);
 
                 model.Orders.Add(orderModel);
             }
@@ -87,7 +96,7 @@ namespace Grand.Web.Features.Handlers.Orders
                     TotalCycles = recurringPayment.TotalCycles,
                     CyclesRemaining = recurringPayment.CyclesRemaining,
                     InitialOrderId = recurringPayment.InitialOrder.Id,
-                    CanCancel = await _orderProcessingService.CanCancelRecurringPayment(request.Customer, recurringPayment),
+                    CanCancel = await _orderRecurringPayment.CanCancelRecurringPayment(request.Customer, recurringPayment),
                 };
 
                 model.RecurringOrders.Add(recurringPaymentModel);

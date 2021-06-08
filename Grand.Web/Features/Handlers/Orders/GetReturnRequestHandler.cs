@@ -7,6 +7,7 @@ using Grand.Services.Catalog;
 using Grand.Services.Directory;
 using Grand.Services.Localization;
 using Grand.Services.Orders;
+using Grand.Services.Queries.Models.Orders;
 using Grand.Services.Seo;
 using Grand.Services.Shipping;
 using Grand.Services.Stores;
@@ -25,7 +26,7 @@ namespace Grand.Web.Features.Handlers.Orders
 {
     public class GetReturnRequestHandler : IRequestHandler<GetReturnRequest, ReturnRequestModel>
     {
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IWorkContext _workContext;
         private readonly IReturnRequestService _returnRequestService;
         private readonly IShipmentService _shipmentService;
@@ -39,7 +40,7 @@ namespace Grand.Web.Features.Handlers.Orders
         private readonly OrderSettings _orderSettings;
 
         public GetReturnRequestHandler(
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             IWorkContext workContext,
             IReturnRequestService returnRequestService,
             IShipmentService shipmentService,
@@ -53,7 +54,7 @@ namespace Grand.Web.Features.Handlers.Orders
             OrderSettings orderSettings
             )
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _workContext = workContext;
             _returnRequestService = returnRequestService;
             _shipmentService = shipmentService;
@@ -96,7 +97,7 @@ namespace Grand.Web.Features.Handlers.Orders
 
         private async Task<IList<ReturnRequestModel.ReturnRequestReasonModel>> PrepareAvailableReturnReasons()
         {
-            return await _cacheManager.GetAsync(string.Format(ModelCacheEventConst.RETURNREQUESTREASONS_MODEL_KEY, _workContext.WorkingLanguage.Id),
+            return await _cacheBase.GetAsync(string.Format(ModelCacheEventConst.RETURNREQUESTREASONS_MODEL_KEY, _workContext.WorkingLanguage.Id),
                 async () =>
                 {
                     var reasons = new List<ReturnRequestModel.ReturnRequestReasonModel>();
@@ -111,7 +112,7 @@ namespace Grand.Web.Features.Handlers.Orders
 
         private async Task<IList<ReturnRequestModel.ReturnRequestActionModel>> PrepareAvailableReturnActions()
         {
-            return await _cacheManager.GetAsync(string.Format(ModelCacheEventConst.RETURNREQUESTACTIONS_MODEL_KEY, _workContext.WorkingLanguage.Id),
+            return await _cacheBase.GetAsync(string.Format(ModelCacheEventConst.RETURNREQUESTACTIONS_MODEL_KEY, _workContext.WorkingLanguage.Id),
                 async () =>
                 {
                     var actions = new List<ReturnRequestModel.ReturnRequestActionModel>();
@@ -131,7 +132,12 @@ namespace Grand.Web.Features.Handlers.Orders
             foreach (var orderItem in request.Order.OrderItems)
             {
                 var qtyDelivery = shipments.Where(x => x.DeliveryDateUtc.HasValue).SelectMany(x => x.ShipmentItems).Where(x => x.OrderItemId == orderItem.Id).Sum(x => x.Quantity);
-                var returnRequests = await _returnRequestService.SearchReturnRequests(customerId: request.Order.CustomerId, orderItemId: orderItem.Id);
+
+                var query = new GetReturnRequestQuery() {
+                    StoreId = request.Store.Id,
+                };
+
+                var returnRequests = await _returnRequestService.SearchReturnRequests(orderItemId: orderItem.Id);
                 int qtyReturn = 0;
 
                 foreach (var rr in returnRequests)
@@ -161,14 +167,12 @@ namespace Grand.Web.Features.Handlers.Orders
                     if (request.Order.CustomerTaxDisplayType == TaxDisplayType.IncludingTax)
                     {
                         //including tax
-                        var unitPriceInclTaxInCustomerCurrency = _currencyService.ConvertCurrency(orderItem.UnitPriceInclTax, request.Order.CurrencyRate);
-                        orderItemModel.UnitPrice = await _priceFormatter.FormatPrice(unitPriceInclTaxInCustomerCurrency, true, request.Order.CustomerCurrencyCode, _workContext.WorkingLanguage, true);
+                        orderItemModel.UnitPrice = await _priceFormatter.FormatPrice(orderItem.UnitPriceInclTax, true, request.Order.CustomerCurrencyCode, _workContext.WorkingLanguage, true);
                     }
                     else
                     {
                         //excluding tax
-                        var unitPriceExclTaxInCustomerCurrency = _currencyService.ConvertCurrency(orderItem.UnitPriceExclTax, request.Order.CurrencyRate);
-                        orderItemModel.UnitPrice = await _priceFormatter.FormatPrice(unitPriceExclTaxInCustomerCurrency, true, request.Order.CustomerCurrencyCode, _workContext.WorkingLanguage, false);
+                        orderItemModel.UnitPrice = await _priceFormatter.FormatPrice(orderItem.UnitPriceExclTax, true, request.Order.CustomerCurrencyCode, _workContext.WorkingLanguage, false);
                     }
                 }
             }

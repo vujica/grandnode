@@ -3,7 +3,7 @@
     //page title
     ViewBag.Title = T("Admin.Configuration.Plugins.Local").Text;
 }
-<form asp-area="Admin" asp-controller="Plugin" asp-action="List" method="post" id="plugins-form">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Plugin" asp-action="List" method="post" id="plugins-form">
     
     <div class="row">
         <div class="col-md-12">
@@ -28,8 +28,9 @@
                             <li>@T("Admin.Configuration.Plugins.Description.Step4")</li>
                             <li>@T("Admin.Configuration.Plugins.Description.Step5")</li>
                         </ol>
+                        <p><strong>@T("Admin.Configuration.Plugins.Description.Note")</strong></p><br>
                         <p>
-                            You can download more grandnode plugins on our <a href="https://www.grandnode.com/extensions?utm_source=admin-panel&utm_medium=plugins&utm_campaign=admin-panel" target="_blank">extensions directory</a>
+                            You can download more grandnode plugins on our <a href="https://grandnode.com/extensions?utm_source=admin-panel&utm_medium=plugins&utm_campaign=admin-panel" target="_blank"><b>extensions directory</b></a>
                         </p>
 
                     </div>
@@ -50,7 +51,7 @@
                         </div>
                         <div class="form-actions">
                             <div class="row">
-                                <div class="col-md-offset-3 col-sm-offset-3 col-md-9 col-sm-9">
+                                <div class="offset-md-3 offset-sm-3 col-md-9 col-sm-9">
                                     <button class="btn btn-success filter-submit" id="search-plugins">
                                         <i class="fa fa-search"></i> @T("Admin.Common.Search")
                                     </button>
@@ -174,7 +175,7 @@
                             '# if(CanChangeEnabled) {# <br />@T("Admin.Configuration.Plugins.Fields.IsEnabled"):  # if(IsEnabled) {# <i class="fa fa-check" aria-hidden="true" style="color:green"></i> #} else {# <i class="fa fa-times" aria-hidden="true" style="color:red"></i> #} # #} #' +
                             //allow configuration only when a plugin has a configuration URL specified
                             '<br /># if(ConfigurationUrl && ConfigurationUrl.length > 0) {# <a class="k-button" href="#=ConfigurationUrl#">@T("Admin.Configuration.Plugins.Fields.Configure")</a>&nbsp;&nbsp;&nbsp; #} #' +
-                            '<a class="k-button" href="javascript:OpenWindow(\'@Url.Content("~/Admin/Plugin/EditPopup")?systemName=#=SystemName#&btnId=btnRefresh&formId=plugins-form\', 800, 500, true);">@T("Admin.Common.Edit")</a>',
+                            '<a class="k-button" href="javascript:OpenWindow(\'@Url.Action("EditPopup", "Plugin")/?systemName=#=SystemName#&btnId=btnRefresh&formId=plugins-form\', 800, 500, true);">@T("Admin.Common.Edit")</a>',
                     }, {
                         field: "Installed",
                         title: "@T("Admin.Configuration.Plugins.Fields.Installation")",
@@ -219,7 +220,7 @@
 </form>
 
 <div class="modal-dialog" id="importfile-window" style="display:none; padding: 0 10px;">
-    <form asp-area="Admin" asp-controller="Plugin" asp-action="UploadPlugin" method="post" enctype = "multipart/form-data">
+    <form asp-area="@Constants.AreaAdmin" asp-controller="Plugin" asp-action="UploadPlugin" method="post" enctype = "multipart/form-data">
         
         <ul class="common-list">
             <li>

@@ -68,20 +68,12 @@ namespace Grand.Services.Catalog
         /// </summary>
         /// <param name="product">Product</param>
         Task UpdateProduct(Product product);
-
-        /// <summary>
-        /// Updates stock the product
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="mediator">Notification</param>
-        Task UpdateStockProduct(Product product, bool mediator = true);
-
+       
         /// <summary>
         /// Updates most view on the product
         /// </summary>
         /// <param name="productId">ProductId</param>
-        /// <param name="qty">Count</param>
-        Task UpdateMostView(string productId, int qty);
+        Task UpdateMostView(string productId);
 
         /// <summary>
         /// Updates best sellers on the product
@@ -93,8 +85,8 @@ namespace Grand.Services.Catalog
         /// <summary>
         /// Set product as unpublished
         /// </summary>
-        /// <param name="productId"></param>
-        Task UnpublishProduct(string productId);
+        /// <param name="product"></param>
+        Task UnpublishProduct(Product product);
 
         /// <summary>
         /// Get (visible) product number in certain category
@@ -191,75 +183,11 @@ namespace Grand.Services.Catalog
         Task UpdateAssociatedProduct(Product product);
 
         /// <summary>
-        /// Get low stock products
-        /// </summary>
-        /// <param name="vendorId">Vendor identifier; "" to load all records</param>
-        /// <param name="products">Low stock products</param>
-        /// <param name="combinations">Low stock attribute combinations</param>
-        void GetLowStockProducts(string vendorId, string storeId,
-            out IList<Product> products,
-            out IList<ProductAttributeCombination> combinations);
-
-        /// <summary>
         /// Gets a product by SKU
         /// </summary>
         /// <param name="sku">SKU</param>
         /// <returns>Product</returns>
         Task<Product> GetProductBySku(string sku);
-
-        /// <summary>
-        /// Update Interval properties
-        /// </summary>
-        /// <param name="productId">Product Id</param>
-        /// <param name="Interval">Interval</param>
-        /// <param name="IntervalUnit">Interval unit</param>
-        /// <param name="includeBothDates">Include both dates</param>
-        Task UpdateIntervalProperties(string productId, int interval, IntervalUnit intervalUnit, bool includeBothDates);
-
-
-        #endregion
-
-        #region Inventory management methods
-
-        /// <summary>
-        /// Adjust inventory
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantityToChange">Quantity to increase or descrease</param>
-        /// <param name="attributesXml">Attributes in XML format</param>
-        Task AdjustInventory(Product product, int quantityToChange, string attributesXml = "", string warehouseId = "");
-
-        /// <summary>
-        /// Reserve the given quantity in the warehouses.
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity, must be negative</param>
-        Task ReserveInventory(Product product, int quantity, string warehouseId);
-
-        /// <summary>
-        /// Unblocks the given quantity reserved items in the warehouses
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="quantity">Quantity, must be positive</param>
-        Task UnblockReservedInventory(Product product, int quantity, string warehouseId);
-
-        /// <summary>
-        /// Book the reserved quantity
-        /// </summary>
-        /// <param name="product">Product</param>
-        /// <param name="attributeXML">AttributeXML</param>
-        /// <param name="warehouseId">Warehouse identifier</param>
-        /// <param name="quantity">Quantity, must be negative</param>
-        Task BookReservedInventory(Product product, string AttributeXML, string warehouseId, int quantity);
-
-        /// <summary>
-        /// Reverse booked inventory (if acceptable)
-        /// </summary>
-        /// <param name="product">product</param>
-        /// <param name="shipment">Shipment</param>
-        /// <param name="shipmentItem">Shipment item</param>
-        /// <returns>Quantity reversed</returns>
-        Task<int> ReverseBookedInventory(Product product, Shipment shipment, ShipmentItem shipmentItem);
 
         #endregion
 
@@ -372,6 +300,28 @@ namespace Grand.Services.Catalog
         /// </summary>
         /// <param name="tierPrice">Tier price</param>
         Task UpdateTierPrice(TierPrice tierPrice);
+
+        #endregion
+
+        #region Product prices
+
+        /// <summary>
+        /// Deletes a product price
+        /// </summary>
+        /// <param name="productPrice">Product price</param>
+        Task DeleteProductPrice(ProductPrice productPrice);
+
+        /// <summary>
+        /// Inserts a product price
+        /// </summary>
+        /// <param name="productPrice">Product price</param>
+        Task InsertProductPrice(ProductPrice productPrice);
+
+        /// <summary>
+        /// Updates the product price
+        /// </summary>
+        /// <param name="productPrice">Product price</param>
+        Task UpdateProductPrice(ProductPrice productPrice);
 
         #endregion
 

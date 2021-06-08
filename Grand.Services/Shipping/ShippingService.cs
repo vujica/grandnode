@@ -1,21 +1,17 @@
 using Grand.Core;
-using Grand.Core.Caching;
-using Grand.Domain.Data;
+using Grand.Core.Plugins;
 using Grand.Domain.Catalog;
 using Grand.Domain.Common;
 using Grand.Domain.Customers;
 using Grand.Domain.Orders;
 using Grand.Domain.Shipping;
 using Grand.Domain.Stores;
-using Grand.Core.Plugins;
 using Grand.Services.Catalog;
 using Grand.Services.Common;
 using Grand.Services.Directory;
-using Grand.Services.Events;
 using Grand.Services.Localization;
 using Grand.Services.Logging;
 using Grand.Services.Orders;
-using MediatR;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using System;
@@ -30,58 +26,9 @@ namespace Grand.Services.Shipping
     /// </summary>
     public partial class ShippingService : IShippingService
     {
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : warehouse ID
-        /// </remarks>
-        private const string WAREHOUSES_BY_ID_KEY = "Grand.warehouse.id-{0}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string WAREHOUSES_PATTERN_KEY = "Grand.warehouse.";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string SHIPPINGMETHOD_PATTERN_KEY = "Grand.shippingmethod.";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string PICKUPPOINTS_PATTERN_KEY = "Grand.pickuppoint.";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : delivery date ID
-        /// </remarks>
-        private const string DELIVERYDATE_BY_ID_KEY = "Grand.deliverydate.id-{0}";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// </remarks>
-        private const string DELIVERYDATE_PATTERN_KEY = "Grand.deliverydate.";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string PRODUCTS_PATTERN_KEY = "Grand.product.";
-
-        #endregion
-
         #region Fields
 
-        private readonly IRepository<ShippingMethod> _shippingMethodRepository;
-        private readonly IRepository<DeliveryDate> _deliveryDateRepository;
-        private readonly IRepository<Warehouse> _warehouseRepository;
-        private readonly IRepository<PickupPoint> _pickupPointsRepository;
+        private readonly IWarehouseService _warehouseService;
         private readonly ILogger _logger;
         private readonly IProductService _productService;
         private readonly IProductAttributeParser _productAttributeParser;
@@ -92,8 +39,6 @@ namespace Grand.Services.Shipping
         private readonly ICurrencyService _currencyService;
         private readonly IStateProvinceService _stateProvinceService;
         private readonly IPluginFinder _pluginFinder;
-        private readonly IMediator _mediator;
-        private readonly ICacheManager _cacheManager;
         private readonly ShippingSettings _shippingSettings;
         private readonly ShoppingCartSettings _shoppingCartSettings;
 
@@ -105,10 +50,7 @@ namespace Grand.Services.Shipping
         /// Ctor
         /// </summary>
         public ShippingService(
-            IRepository<ShippingMethod> shippingMethodRepository,
-            IRepository<DeliveryDate> deliveryDateRepository,
-            IRepository<Warehouse> warehouseRepository,
-            IRepository<PickupPoint> pickupPointsRepository,
+            IWarehouseService warehouseService,
             ILogger logger,
             IProductService productService,
             IProductAttributeParser productAttributeParser,
@@ -118,16 +60,11 @@ namespace Grand.Services.Shipping
             ICountryService countryService,
             IStateProvinceService stateProvinceService,
             IPluginFinder pluginFinder,
-            IMediator mediator,
             ICurrencyService currencyService,
-            ICacheManager cacheManager,
             ShoppingCartSettings shoppingCartSettings,
             ShippingSettings shippingSettings)
         {
-            _shippingMethodRepository = shippingMethodRepository;
-            _deliveryDateRepository = deliveryDateRepository;
-            _warehouseRepository = warehouseRepository;
-            _pickupPointsRepository = pickupPointsRepository;
+            _warehouseService = warehouseService;
             _logger = logger;
             _productService = productService;
             _productAttributeParser = productAttributeParser;
@@ -138,15 +75,11 @@ namespace Grand.Services.Shipping
             _stateProvinceService = stateProvinceService;
             _pluginFinder = pluginFinder;
             _currencyService = currencyService;
-            _mediator = mediator;
-            _cacheManager = cacheManager;
             _shoppingCartSettings = shoppingCartSettings;
             _shippingSettings = shippingSettings;
         }
 
         #endregion
-
-        #region Methods
 
         #region Shipping rate computation methods
 
@@ -196,362 +129,6 @@ namespace Grand.Services.Shipping
 
         #endregion
 
-        #region Shipping methods
-
-
-        /// <summary>
-        /// Deletes a shipping method
-        /// </summary>
-        /// <param name="shippingMethod">The shipping method</param>
-        public virtual async Task DeleteShippingMethod(ShippingMethod shippingMethod)
-        {
-            if (shippingMethod == null)
-                throw new ArgumentNullException("shippingMethod");
-
-            await _shippingMethodRepository.DeleteAsync(shippingMethod);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(SHIPPINGMETHOD_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityDeleted(shippingMethod);
-        }
-
-        /// <summary>
-        /// Gets a shipping method
-        /// </summary>
-        /// <param name="shippingMethodId">The shipping method identifier</param>
-        /// <returns>Shipping method</returns>
-        public virtual Task<ShippingMethod> GetShippingMethodById(string shippingMethodId)
-        {
-            return _shippingMethodRepository.GetByIdAsync(shippingMethodId);
-        }
-
-        /// <summary>
-        /// Gets all shipping methods
-        /// </summary>
-        /// <param name="filterByCountryId">The country indentifier to filter by</param>
-        /// <returns>Shipping methods</returns>
-        public virtual async Task<IList<ShippingMethod>> GetAllShippingMethods(string filterByCountryId = "", Customer customer = null)
-        {
-            var shippingMethods = new List<ShippingMethod>();
-
-            shippingMethods = await _cacheManager.GetAsync(SHIPPINGMETHOD_PATTERN_KEY, () =>
-            {
-                var query = from sm in _shippingMethodRepository.Table
-                            orderby sm.DisplayOrder
-                            select sm;
-                return query.ToListAsync();
-            });
-
-            if (!String.IsNullOrEmpty(filterByCountryId))
-            {
-                shippingMethods = shippingMethods.Where(x => !x.CountryRestrictionExists(filterByCountryId)).ToList();
-            }
-            if (customer != null)
-            {
-                shippingMethods = shippingMethods.Where(x => !x.CustomerRoleRestrictionExists(customer.CustomerRoles.Select(y => y.Id).ToList())).ToList();
-            }
-
-            return shippingMethods;
-        }
-
-        /// <summary>
-        /// Inserts a shipping method
-        /// </summary>
-        /// <param name="shippingMethod">Shipping method</param>
-        public virtual async Task InsertShippingMethod(ShippingMethod shippingMethod)
-        {
-            if (shippingMethod == null)
-                throw new ArgumentNullException("shippingMethod");
-
-            await _shippingMethodRepository.InsertAsync(shippingMethod);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(SHIPPINGMETHOD_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityInserted(shippingMethod);
-        }
-
-        /// <summary>
-        /// Updates the shipping method
-        /// </summary>
-        /// <param name="shippingMethod">Shipping method</param>
-        public virtual async Task UpdateShippingMethod(ShippingMethod shippingMethod)
-        {
-            if (shippingMethod == null)
-                throw new ArgumentNullException("shippingMethod");
-
-            await _shippingMethodRepository.UpdateAsync(shippingMethod);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(SHIPPINGMETHOD_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityUpdated(shippingMethod);
-        }
-
-        #endregion
-
-        #region Delivery dates
-
-        /// <summary>
-        /// Deletes a delivery date
-        /// </summary>
-        /// <param name="deliveryDate">The delivery date</param>
-        public virtual async Task DeleteDeliveryDate(DeliveryDate deliveryDate)
-        {
-            if (deliveryDate == null)
-                throw new ArgumentNullException("deliveryDate");
-
-            await _deliveryDateRepository.DeleteAsync(deliveryDate);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(DELIVERYDATE_PATTERN_KEY);
-
-            //clear product cache
-            await _cacheManager.RemoveByPrefix(PRODUCTS_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityDeleted(deliveryDate);
-        }
-
-        /// <summary>
-        /// Gets a delivery date
-        /// </summary>
-        /// <param name="deliveryDateId">The delivery date identifier</param>
-        /// <returns>Delivery date</returns>
-        public virtual Task<DeliveryDate> GetDeliveryDateById(string deliveryDateId)
-        {
-            string key = string.Format(DELIVERYDATE_BY_ID_KEY, deliveryDateId);
-            return _cacheManager.GetAsync(key, () => _deliveryDateRepository.GetByIdAsync(deliveryDateId));
-        }
-
-        /// <summary>
-        /// Gets all delivery dates
-        /// </summary>
-        /// <returns>Delivery dates</returns>
-        public virtual async Task<IList<DeliveryDate>> GetAllDeliveryDates()
-        {
-            var query = from dd in _deliveryDateRepository.Table
-                        orderby dd.DisplayOrder
-                        select dd;
-            return await query.ToListAsync();
-        }
-
-        /// <summary>
-        /// Inserts a delivery date
-        /// </summary>
-        /// <param name="deliveryDate">Delivery date</param>
-        public virtual async Task InsertDeliveryDate(DeliveryDate deliveryDate)
-        {
-            if (deliveryDate == null)
-                throw new ArgumentNullException("deliveryDate");
-
-            await _deliveryDateRepository.InsertAsync(deliveryDate);
-
-            //event notification
-            await _mediator.EntityInserted(deliveryDate);
-        }
-
-        /// <summary>
-        /// Updates the delivery date
-        /// </summary>
-        /// <param name="deliveryDate">Delivery date</param>
-        public virtual async Task UpdateDeliveryDate(DeliveryDate deliveryDate)
-        {
-            if (deliveryDate == null)
-                throw new ArgumentNullException("deliveryDate");
-
-            await _deliveryDateRepository.UpdateAsync(deliveryDate);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(DELIVERYDATE_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityUpdated(deliveryDate);
-        }
-
-        #endregion
-
-        #region Warehouses
-
-        /// <summary>
-        /// Deletes a warehouse
-        /// </summary>
-        /// <param name="warehouse">The warehouse</param>
-        public virtual async Task DeleteWarehouse(Warehouse warehouse)
-        {
-            if (warehouse == null)
-                throw new ArgumentNullException("warehouse");
-
-            await _warehouseRepository.DeleteAsync(warehouse);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(WAREHOUSES_PATTERN_KEY);
-            //clear product cache
-            await _cacheManager.RemoveByPrefix(PRODUCTS_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityDeleted(warehouse);
-        }
-
-        /// <summary>
-        /// Gets a warehouse
-        /// </summary>
-        /// <param name="warehouseId">The warehouse identifier</param>
-        /// <returns>Warehouse</returns>
-        public virtual Task<Warehouse> GetWarehouseById(string warehouseId)
-        {
-            string key = string.Format(WAREHOUSES_BY_ID_KEY, warehouseId);
-            return _cacheManager.GetAsync(key, () => _warehouseRepository.GetByIdAsync(warehouseId));
-        }
-
-        /// <summary>
-        /// Gets all warehouses
-        /// </summary>
-        /// <returns>Warehouses</returns>
-        public virtual async Task<IList<Warehouse>> GetAllWarehouses()
-        {
-            var query = from wh in _warehouseRepository.Table
-                        orderby wh.Name
-                        select wh;
-            return await query.ToListAsync();
-        }
-
-        /// <summary>
-        /// Inserts a warehouse
-        /// </summary>
-        /// <param name="warehouse">Warehouse</param>
-        public virtual async Task InsertWarehouse(Warehouse warehouse)
-        {
-            if (warehouse == null)
-                throw new ArgumentNullException("warehouse");
-
-            await _warehouseRepository.InsertAsync(warehouse);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(WAREHOUSES_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityInserted(warehouse);
-        }
-
-        /// <summary>
-        /// Updates the warehouse
-        /// </summary>
-        /// <param name="warehouse">Warehouse</param>
-        public virtual async Task UpdateWarehouse(Warehouse warehouse)
-        {
-            if (warehouse == null)
-                throw new ArgumentNullException("warehouse");
-
-            await _warehouseRepository.UpdateAsync(warehouse);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(WAREHOUSES_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityUpdated(warehouse);
-        }
-
-        #endregion
-
-
-        #region Pickup points
-
-
-        /// <summary>
-        /// Gets a pickup point
-        /// </summary>
-        /// <param name="pickupPointId">The pickup point identifier</param>
-        /// <returns>Delivery date</returns>
-        public virtual Task<PickupPoint> GetPickupPointById(string pickupPointId)
-        {
-            return _pickupPointsRepository.GetByIdAsync(pickupPointId);
-        }
-
-        /// <summary>
-        /// Gets all pickup points
-        /// </summary>
-        /// <returns>Warehouses</returns>
-        public virtual async Task<IList<PickupPoint>> GetAllPickupPoints()
-        {
-            var query = from pp in _pickupPointsRepository.Table
-                        orderby pp.DisplayOrder
-                        select pp;
-            return await query.ToListAsync();
-        }
-
-        /// <summary>
-        /// Gets all pickup points
-        /// </summary>
-        /// <returns>Warehouses</returns>
-        public virtual async Task<IList<PickupPoint>> LoadActivePickupPoints(string storeId = "")
-        {
-            var query = from pp in _pickupPointsRepository.Table
-                        where pp.StoreId == storeId || String.IsNullOrEmpty(pp.StoreId)
-                        orderby pp.DisplayOrder
-                        select pp;
-            return await query.ToListAsync();
-        }
-
-
-        /// <summary>
-        /// Inserts a warehouse
-        /// </summary>
-        /// <param name="warehouse">Warehouse</param>
-        public virtual async Task InsertPickupPoint(PickupPoint pickupPoint)
-        {
-            if (pickupPoint == null)
-                throw new ArgumentNullException("pickupPoint");
-
-            await _pickupPointsRepository.InsertAsync(pickupPoint);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(PICKUPPOINTS_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityInserted(pickupPoint);
-        }
-
-        /// <summary>
-        /// Updates the warehouse
-        /// </summary>
-        /// <param name="warehouse">Warehouse</param>
-        public virtual async Task UpdatePickupPoint(PickupPoint pickupPoint)
-        {
-            if (pickupPoint == null)
-                throw new ArgumentNullException("pickupPoint");
-
-            await _pickupPointsRepository.UpdateAsync(pickupPoint);
-
-            //clear cache
-            await _cacheManager.RemoveByPrefix(WAREHOUSES_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityUpdated(pickupPoint);
-        }
-
-        /// <summary>
-        /// Deletes a delivery date
-        /// </summary>
-        /// <param name="deliveryDate">The delivery date</param>
-        public virtual async Task DeletePickupPoint(PickupPoint pickupPoint)
-        {
-            if (pickupPoint == null)
-                throw new ArgumentNullException("pickupPoint");
-
-            await _pickupPointsRepository.DeleteAsync(pickupPoint);
-            await _cacheManager.RemoveByPrefix(PICKUPPOINTS_PATTERN_KEY);
-
-            //event notification
-            await _mediator.EntityDeleted(pickupPoint);
-        }
-
-
-        #endregion
 
         #region Workflow
 
@@ -570,9 +147,9 @@ namespace Grand.Services.Shipping
 
             //attribute weight
             decimal attributesTotalWeight = decimal.Zero;
-            if (!String.IsNullOrEmpty(shoppingCartItem.AttributesXml))
+            if (shoppingCartItem.Attributes != null && shoppingCartItem.Attributes.Any())
             {
-                var attributeValues = _productAttributeParser.ParseProductAttributeValues(product, shoppingCartItem.AttributesXml);
+                var attributeValues = _productAttributeParser.ParseProductAttributeValues(product, shoppingCartItem.Attributes);
                 foreach (var attributeValue in attributeValues)
                 {
                     switch (attributeValue.AttributeValueType)
@@ -621,10 +198,10 @@ namespace Grand.Services.Shipping
             //checkout attributes
             if (customer != null && includeCheckoutAttributes)
             {
-                var checkoutAttributesXml = customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.CheckoutAttributes, request.StoreId);
-                if (!string.IsNullOrEmpty(checkoutAttributesXml))
+                var checkoutAttributes = customer.GetAttributeFromEntity<List<CustomAttribute>>(SystemCustomerAttributeNames.CheckoutAttributes, request.StoreId);
+                if (checkoutAttributes.Any())
                 {
-                    var attributeValues = await _checkoutAttributeParser.ParseCheckoutAttributeValues(checkoutAttributesXml);
+                    var attributeValues = await _checkoutAttributeParser.ParseCheckoutAttributeValues(checkoutAttributes);
                     foreach (var attributeValue in attributeValues)
                         totalWeight += attributeValue.WeightAdjustment;
                 }
@@ -649,12 +226,12 @@ namespace Grand.Services.Shipping
             var height = decimal.Zero;
 
             //attributes
-            if (String.IsNullOrEmpty(shoppingCartItem.AttributesXml))
+            if (shoppingCartItem.Attributes == null || !shoppingCartItem.Attributes.Any())
                 return (0, 0, 0);
 
             var product = await _productService.GetProductById(shoppingCartItem.ProductId);
             //bundled products (associated attributes)
-            var attributeValues = _productAttributeParser.ParseProductAttributeValues(product, shoppingCartItem.AttributesXml)
+            var attributeValues = _productAttributeParser.ParseProductAttributeValues(product, shoppingCartItem.Attributes)
                 .Where(x => x.AttributeValueType == AttributeValueType.AssociatedToProduct)
                 .ToList();
             foreach (var attributeValue in attributeValues)
@@ -771,7 +348,7 @@ namespace Grand.Services.Shipping
         /// <returns></returns>
         public virtual async Task<Warehouse> GetNearestWarehouse(Address address, IList<Warehouse> warehouses = null)
         {
-            warehouses = warehouses ?? await GetAllWarehouses();
+            warehouses = warehouses ?? await _warehouseService.GetAllWarehouses();
 
             //no address specified. return any
             if (address == null)
@@ -785,7 +362,7 @@ namespace Grand.Services.Shipping
             var matchedByCountry = new List<Warehouse>();
             foreach (var warehouse in warehouses)
             {
-                var warehouseAddress = await _addressService.GetAddressByIdSettings(warehouse.AddressId);
+                var warehouseAddress = warehouse.Address;
                 if (warehouseAddress != null)
                     if (warehouseAddress.CountryId == address.CountryId)
                         matchedByCountry.Add(warehouse);
@@ -799,7 +376,7 @@ namespace Grand.Services.Shipping
             var matchedByState = new List<Warehouse>();
             foreach (var warehouse in matchedByCountry)
             {
-                var warehouseAddress = await _addressService.GetAddressByIdSettings(warehouse.AddressId);
+                var warehouseAddress = warehouse.Address;
                 if (warehouseAddress != null)
                     if (warehouseAddress.StateProvinceId == address.StateProvinceId)
                         matchedByState.Add(warehouse);
@@ -853,7 +430,7 @@ namespace Grand.Services.Shipping
                         foreach (var pwi in product.ProductWarehouseInventory)
                         {
                             //TODO validate stock quantity when backorder is not allowed?
-                            var tmpWarehouse = await GetWarehouseById(pwi.WarehouseId);
+                            var tmpWarehouse = await _warehouseService.GetWarehouseById(pwi.WarehouseId);
                             if (tmpWarehouse != null)
                                 allWarehouses.Add(tmpWarehouse);
                         }
@@ -862,17 +439,17 @@ namespace Grand.Services.Shipping
                     else
                     {
                         //multiple warehouses are not supported
-                        warehouse = await GetWarehouseById(product.WarehouseId);
+                        warehouse = await _warehouseService.GetWarehouseById(product.WarehouseId);
                     }
                 }
                 else
                 {
                     if (!string.IsNullOrEmpty(sci.WarehouseId))
-                        warehouse = await GetWarehouseById(sci.WarehouseId);
+                        warehouse = await _warehouseService.GetWarehouseById(sci.WarehouseId);
                     else
                     {
                         if (!string.IsNullOrEmpty(store?.DefaultWarehouseId))
-                            warehouse = await GetWarehouseById(store.DefaultWarehouseId);
+                            warehouse = await _warehouseService.GetWarehouseById(store.DefaultWarehouseId);
                     }
 
                 }
@@ -901,7 +478,7 @@ namespace Grand.Services.Shipping
                     if (warehouse != null)
                     {
                         //warehouse address
-                        originAddress = await _addressService.GetAddressByIdSettings(warehouse.AddressId);
+                        originAddress = warehouse.Address;
                         request.WarehouseFrom = warehouse;
                     }
                     if (originAddress == null)
@@ -1057,8 +634,6 @@ namespace Grand.Services.Shipping
 
             return result;
         }
-
-        #endregion
 
         #endregion
     }

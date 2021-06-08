@@ -1,14 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Settings;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    [Validator(typeof(RewardPointsSettingsValidator))]
-    public partial class RewardPointsSettingsModel : BaseGrandModel
+    public partial class RewardPointsSettingsModel : BaseModel
     {
         public RewardPointsSettingsModel()
         {

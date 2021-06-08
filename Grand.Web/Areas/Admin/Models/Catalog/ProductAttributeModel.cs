@@ -1,14 +1,13 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Catalog;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
+using Grand.Framework.Mapping;
+using Grand.Framework.Mvc.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Catalog
 {
-    [Validator(typeof(ProductAttributeValidator))]
-    public partial class ProductAttributeModel : BaseGrandEntityModel, ILocalizedModel<ProductAttributeLocalizedModel>
+    public partial class ProductAttributeModel : BaseEntityModel, ILocalizedModel<ProductAttributeLocalizedModel>, IStoreMappingModel
     {
         public ProductAttributeModel()
         {
@@ -22,15 +21,20 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string SeName { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.Fields.Description")]
-        public string Description {get;set;}
-        
+        public string Description { get; set; }
 
+        //Store mapping
+        [GrandResourceDisplayName("Admin.Catalog.Categories.Fields.LimitedToStores")]
+        public bool LimitedToStores { get; set; }
+        [GrandResourceDisplayName("Admin.Catalog.Categories.Fields.AvailableStores")]
+        public List<StoreModel> AvailableStores { get; set; }
+        public string[] SelectedStoreIds { get; set; }
 
         public IList<ProductAttributeLocalizedModel> Locales { get; set; }
 
         #region Nested classes
 
-        public partial class UsedByProductModel : BaseGrandEntityModel
+        public partial class UsedByProductModel : BaseEntityModel
         {
             [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.UsedByProducts.Product")]
             public string ProductName { get; set; }
@@ -46,17 +50,15 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.Fields.Description")]
-        
-        public string Description {get;set;}
+
+        public string Description { get; set; }
     }
 
-
-    [Validator(typeof(PredefinedProductAttributeValueModelValidator))]
-    public partial class PredefinedProductAttributeValueModel : BaseGrandEntityModel, ILocalizedModel<PredefinedProductAttributeValueLocalizedModel>
+    public partial class PredefinedProductAttributeValueModel : BaseEntityModel, ILocalizedModel<PredefinedProductAttributeValueLocalizedModel>
     {
         public PredefinedProductAttributeValueModel()
         {
@@ -66,7 +68,7 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string ProductAttributeId { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.PredefinedValues.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.PredefinedValues.Fields.PriceAdjustment")]
@@ -97,7 +99,7 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ProductAttributes.PredefinedValues.Fields.Name")]
-        
+
         public string Name { get; set; }
     }
 }

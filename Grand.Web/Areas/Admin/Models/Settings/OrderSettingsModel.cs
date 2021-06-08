@@ -1,14 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Settings;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    [Validator(typeof(OrderSettingsValidator))]
-    public partial class OrderSettingsModel : BaseGrandModel
+    public partial class OrderSettingsModel : BaseModel
     {
         public OrderSettingsModel()
         {
@@ -30,10 +27,6 @@ namespace Grand.Web.Areas.Admin.Models.Settings
         public bool MinOrderSubtotalAmountIncludingTax { get; set; }
         public bool MinOrderSubtotalAmountIncludingTax_OverrideForStore { get; set; }
 
-
-        [GrandResourceDisplayName("Admin.Configuration.Settings.Order.MinOrderTotalAmount")]
-        public decimal MinOrderTotalAmount { get; set; }
-        public bool MinOrderTotalAmount_OverrideForStore { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Settings.Order.AnonymousCheckoutAllowed")]
         public bool AnonymousCheckoutAllowed { get; set; }
@@ -91,8 +84,8 @@ namespace Grand.Web.Areas.Admin.Models.Settings
         [GrandResourceDisplayName("Admin.Configuration.Settings.Order.NumberOfDaysReturnRequestAvailable")]
         public int NumberOfDaysReturnRequestAvailable { get; set; }
         public bool NumberOfDaysReturnRequestAvailable_OverrideForStore { get; set; }
-        
-        
+
+
         [GrandResourceDisplayName("Admin.Configuration.Settings.Order.GiftCards_Activated")]
         public int GiftCards_Activated_OrderStatusId { get; set; }
         public IList<SelectListItem> GiftCards_Activated_OrderStatuses { get; set; }
@@ -118,5 +111,9 @@ namespace Grand.Web.Areas.Admin.Models.Settings
         [GrandResourceDisplayName("Admin.Configuration.Settings.Order.AllowCustomerToAddOrderNote")]
         public bool AllowCustomerToAddOrderNote { get; set; }
         public bool AllowCustomerToAddOrderNote_OverrideForStore { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Settings.Order.DaysToCancelUnpaidOrder")]
+        public int? DaysToCancelUnpaidOrder { get; set; }
+
     }
 }

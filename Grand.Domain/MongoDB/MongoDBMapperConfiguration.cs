@@ -4,7 +4,6 @@ using Grand.Domain.Customers;
 using Grand.Domain.Directory;
 using Grand.Domain.Discounts;
 using Grand.Domain.Documents;
-using Grand.Domain.Forums;
 using Grand.Domain.Logging;
 using Grand.Domain.Media;
 using Grand.Domain.Messages;
@@ -49,6 +48,7 @@ namespace Grand.Domain.MongoDB
             RegisterClassRelatedProduct();
             RegisterClassBundleProduct();
             RegisterClassTierPrice();
+            RegisterClassProductPrice();
             RegisterClassAddress();
             RegisterClassCustomer();
             RegisterClassShoppingCartItem();
@@ -61,7 +61,6 @@ namespace Grand.Domain.MongoDB
             RegisterClassCustomerReminderHistory();
             RegisterClassCustomerRole();
             RegisterClassDiscount();
-            RegisterClassForumTopic();
             RegisterClassLog();
             RegisterClassDownload();
             RegisterClassCampaign();
@@ -76,6 +75,7 @@ namespace Grand.Domain.MongoDB
             RegisterClassVendorNote();
             RegisterClassCurrency();
             RegisterClassDocument();
+            RegisterClassOrderTag();
         }
 
         private static void RegisterClassProduct()
@@ -195,6 +195,14 @@ namespace Grand.Domain.MongoDB
                 cm.UnmapMember(c => c.ProductId);
             });
         }
+        private static void RegisterClassProductPrice()
+        {
+            BsonClassMap.RegisterClassMap<ProductPrice>(cm =>
+            {
+                cm.AutoMap();
+                cm.UnmapMember(c => c.ProductId);
+            });
+        }
         private static void RegisterClassAddress()
         {
             BsonClassMap.RegisterClassMap<Address>(cm =>
@@ -297,14 +305,6 @@ namespace Grand.Domain.MongoDB
                 cm.UnmapMember(c => c.DiscountLimitation);
             });
         }
-        private static void RegisterClassForumTopic()
-        {
-            BsonClassMap.RegisterClassMap<ForumTopic>(cm =>
-            {
-                cm.AutoMap();
-                cm.UnmapMember(c => c.ForumTopicType);
-            });
-        }
         private static void RegisterClassLog()
         {
             BsonClassMap.RegisterClassMap<Log>(cm =>
@@ -387,7 +387,6 @@ namespace Grand.Domain.MongoDB
                 cm.UnmapMember(c => c.PaymentStatus);
                 cm.UnmapMember(c => c.ShippingStatus);
                 cm.UnmapMember(c => c.CustomerTaxDisplayType);
-                cm.UnmapMember(c => c.TaxRatesDictionary);
             });
         }
         private static void RegisterClassShipmentItem()
@@ -421,6 +420,14 @@ namespace Grand.Domain.MongoDB
                 cm.AutoMap();
                 cm.UnmapMember(c => c.DocumentStatus);
                 cm.UnmapMember(c => c.Reference);
+            });
+        }
+
+        private static void RegisterClassOrderTag()
+        {
+            BsonClassMap.RegisterClassMap<OrderTag>(cm =>
+            {
+                cm.AutoMap();
             });
         }
     }

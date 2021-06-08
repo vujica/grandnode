@@ -17,7 +17,7 @@ namespace Grand.Domain.Customers
         public CustomerReminderRuleEnum ReminderRule
         {
             get { return (CustomerReminderRuleEnum)ReminderRuleId; }
-            set { this.ReminderRuleId = (int)value; }
+            set { ReminderRuleId = (int)value; }
         }
 
         public int Status { get; set; }
@@ -25,7 +25,7 @@ namespace Grand.Domain.Customers
         public CustomerReminderHistoryStatusEnum HistoryStatus
         {
             get { return (CustomerReminderHistoryStatusEnum)Status; }
-            set { this.Status = (int)value; }
+            set { Status = (int)value; }
         }
         public string OrderId { get; set; }
         public string BaseOrderId { get; set; }
@@ -37,7 +37,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<HistoryLevel> Levels
         {
-            get { return _level ?? (_level = new List<HistoryLevel>()); }
+            get { return _level ??= new List<HistoryLevel>(); }
             protected set { _level = value; }
         }
 

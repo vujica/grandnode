@@ -1,12 +1,9 @@
 ﻿using Grand.Core.Configuration;
 using Grand.Core.Data;
-using Grand.Domain.Localization;
-using Grand.Framework.Mvc.Routing;
-using Grand.Services.Localization;
+using Grand.Core.Routing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using System.Linq;
 
 namespace Grand.Web.Infrastructure
 {
@@ -51,10 +48,6 @@ namespace Grand.Web.Infrastructure
 
             RegisterCmsRoute(routeBuilder, pattern);
 
-            RegisterBoardsRoute(routeBuilder, pattern);
-
-            RegisterPrivateMessagesRoute(routeBuilder, pattern);
-
             RegisterBlogRoute(routeBuilder, pattern);
 
             RegisterNewsletterRoute(routeBuilder, pattern);
@@ -73,11 +66,7 @@ namespace Grand.Web.Infrastructure
 
         }
 
-        public int Priority {
-            get {
-                return 0;
-            }
-        }
+        public int Priority => 0;
 
         private void RegisterCustomerRoute(IEndpointRouteBuilder routeBuilder, string pattern)
         {
@@ -163,6 +152,22 @@ namespace Grand.Web.Infrastructure
                             pattern + "customer/reviews",
                             new { controller = "Customer", action = "Reviews" });
 
+            routeBuilder.MapControllerRoute("CustomerSubAccounts",
+                            pattern + "customer/subaccounts",
+                            new { controller = "Customer", action = "SubAccounts" });
+
+            routeBuilder.MapControllerRoute("CustomerSubAccountAdd",
+                            pattern + "customer/subaccountadd",
+                            new { controller = "Customer", action = "SubAccountAdd" });
+
+            routeBuilder.MapControllerRoute("CustomerSubAccountEdit",
+                            pattern + "customer/subaccountedit",
+                            new { controller = "Customer", action = "SubAccountEdit" });
+
+            routeBuilder.MapControllerRoute("CustomerSubAccountDelete",
+                            pattern + "customer/subaccountdelete",
+                            new { controller = "Customer", action = "SubAccountDelete" });
+
             routeBuilder.MapControllerRoute("CustomerDownloadableProducts",
                             pattern + "customer/downloadableproducts",
                             new { controller = "Customer", action = "DownloadableProducts" });
@@ -174,10 +179,6 @@ namespace Grand.Web.Infrastructure
             routeBuilder.MapControllerRoute("CustomerDeleteAccount",
                             pattern + "customer/deleteaccount",
                             new { controller = "Customer", action = "DeleteAccount" });
-
-            routeBuilder.MapControllerRoute("CustomerAvatar",
-                            pattern + "customer/avatar",
-                            new { controller = "Customer", action = "Avatar" });
 
             routeBuilder.MapControllerRoute("CustomerAddressEdit",
                             pattern + "customer/addressedit/{addressId}",
@@ -191,7 +192,7 @@ namespace Grand.Web.Infrastructure
                             pattern + "customer/useragreement/{orderItemId}",
                             new { controller = "Customer", action = "UserAgreement" });
 
-            
+
         }
         private void RegisterVendorRoute(IEndpointRouteBuilder routeBuilder, string pattern)
         {
@@ -340,15 +341,7 @@ namespace Grand.Web.Infrastructure
             routeBuilder.MapControllerRoute("ContactUs",
                             pattern + "contactus",
                             new { controller = "Common", action = "ContactUs" });
-            //sitemap
-            routeBuilder.MapControllerRoute("Sitemap",
-                            pattern + "sitemap",
-                            new { controller = "Common", action = "Sitemap" });
-
-            routeBuilder.MapControllerRoute("sitemap-indexed.xml",
-                            pattern + "sitemap-{Id:min(0)}.xml",
-                            new { controller = "Common", action = "SitemapXml" });
-
+            
             //interactive form
             routeBuilder.MapControllerRoute("PopupInteractiveForm",
                             pattern + "popupinteractiveform",
@@ -384,19 +377,38 @@ namespace Grand.Web.Infrastructure
                             pattern + "eucookielawaccept",
                             new { controller = "Common", action = "EuCookieLawAccept" });
 
+            //Privacy Preference settings
+            routeBuilder.MapControllerRoute("PrivacyPreference",
+                pattern + "privacypreference",
+                new { controller = "Common", action = "PrivacyPreference" });
+
             // contact attributes with "upload file" type
             routeBuilder.MapControllerRoute("UploadFileContactAttribute",
                             pattern + "uploadfilecontactattribute/{attributeId}",
                             new { controller = "Common", action = "UploadFileContactAttribute" });
+
+            //CurrentPosition Save
+            routeBuilder.MapControllerRoute("CurrentPosition",
+                pattern + "currentposition",
+                new { controller = "Common", action = "SaveCurrentPosition" });
 
             //robots.txt
             routeBuilder.MapControllerRoute("robots.txt",
                             "robots.txt",
                             new { controller = "Common", action = "RobotsTextFile" });
 
+            //sitemap
+            routeBuilder.MapControllerRoute("Sitemap",
+                            pattern + "sitemap",
+                            new { controller = "Common", action = "Sitemap" });
+
             //sitemap (XML)
             routeBuilder.MapControllerRoute("sitemap.xml",
                             pattern + "sitemap.xml",
+                            new { controller = "Common", action = "SitemapXml" });
+
+            routeBuilder.MapControllerRoute("sitemap-indexed.xml",
+                            pattern + "sitemap/{id:min(0)}.xml",
                             new { controller = "Common", action = "SitemapXml" });
 
             //store closed
@@ -411,7 +423,7 @@ namespace Grand.Web.Infrastructure
 
             //lets encrypt
             routeBuilder.MapControllerRoute("well-known",
-                            ".well-known/acme-challenge/{fileName}",
+                            ".well-known/pki-validation/{fileName}",
                             new { controller = "LetsEncrypt", action = "Index" });
 
 
@@ -474,21 +486,21 @@ namespace Grand.Web.Infrastructure
             //add product to cart (without any attributes and options). used on catalog pages.
             routeBuilder.MapControllerRoute("AddProductToCart-Catalog",
                             pattern + "addproducttocart/catalog/{productId}/{shoppingCartTypeId}",
-                            new { controller = "AddToCart", action = "AddProductToCart_Catalog" },
+                            new { controller = "ActionCart", action = "AddProductToCart_Catalog" },
                             new { productId = @"\w+", shoppingCartTypeId = @"\d+" },
                             new[] { "Grand.Web.Controllers" });
 
             //add product to cart (with attributes and options). used on the product details pages.
             routeBuilder.MapControllerRoute("AddProductToCart-Details",
                             pattern + "addproducttocart/details/{productId}/{shoppingCartTypeId}",
-                            new { controller = "AddToCart", action = "AddProductToCart_Details" },
+                            new { controller = "ActionCart", action = "AddProductToCart_Details" },
                             new { productId = @"\w+", shoppingCartTypeId = @"\d+" },
                             new[] { "Grand.Web.Controllers" });
 
             //add product to bid, use on the product details page
             routeBuilder.MapControllerRoute("AddBid",
                             pattern + "addbid/AddBid/{productId}/{shoppingCartTypeId}",
-                            new { controller = "AddToCart", action = "AddBid" },
+                            new { controller = "ActionCart", action = "AddBid" },
                             new { productId = @"\w+", shoppingCartTypeId = @"\d+" },
                             new[] { "Grand.Web.Controllers" });
 
@@ -526,149 +538,6 @@ namespace Grand.Web.Infrastructure
                             pattern + "poll/vote",
                             new { controller = "Poll", action = "Vote" });
 
-        }
-
-        private void RegisterPrivateMessagesRoute(IEndpointRouteBuilder routeBuilder, string pattern)
-        {
-
-            //private messages
-            routeBuilder.MapControllerRoute("PrivateMessages",
-                            pattern + "privatemessages/{tab?}",
-                            new { controller = "PrivateMessages", action = "Index" });
-
-            routeBuilder.MapControllerRoute("PrivateMessagesPaged",
-                            pattern + "privatemessages/{tab}/page/{pageNumber}",
-                            new { controller = "PrivateMessages", action = "Index" });
-
-            routeBuilder.MapControllerRoute("PrivateMessagesInbox",
-                            pattern + "inboxupdate",
-                            new { controller = "PrivateMessages", action = "InboxUpdate" });
-
-            routeBuilder.MapControllerRoute("PrivateMessagesSent",
-                            pattern + "sentupdate",
-                            new { controller = "PrivateMessages", action = "SentUpdate" });
-
-            routeBuilder.MapControllerRoute("SendPM",
-                            pattern + "sendpm/{toCustomerId}",
-                            new { controller = "PrivateMessages", action = "SendPM" });
-
-            routeBuilder.MapControllerRoute("SendPMReply",
-                            pattern + "sendpm/{toCustomerId}/{replyToMessageId}",
-                            new { controller = "PrivateMessages", action = "SendPM" });
-
-            routeBuilder.MapControllerRoute("ViewPM",
-                            pattern + "viewpm/{privateMessageId}",
-                            new { controller = "PrivateMessages", action = "ViewPM" });
-
-            routeBuilder.MapControllerRoute("DeletePM",
-                            pattern + "deletepm/{privateMessageId}",
-                            new { controller = "PrivateMessages", action = "DeletePM" });
-        }
-        
-        private void RegisterBoardsRoute(IEndpointRouteBuilder routeBuilder, string pattern)
-        {
-            //forum
-            routeBuilder.MapControllerRoute("Boards",
-                            pattern + "boards",
-                            new { controller = "Boards", action = "Index" });
-
-            routeBuilder.MapControllerRoute("CustomerForumSubscriptions",
-                           pattern + "boards/forumsubscriptions",
-                           new { controller = "Boards", action = "CustomerForumSubscriptions" });
-
-            routeBuilder.MapControllerRoute("CustomerForumSubscriptionsPaged",
-                            pattern + "boards/forumsubscriptions/{pageNumber}",
-                            new { controller = "Boards", action = "CustomerForumSubscriptions" });
-
-            //forums
-            routeBuilder.MapControllerRoute("ActiveDiscussions",
-                            pattern + "boards/activediscussions",
-                            new { controller = "Boards", action = "ActiveDiscussions" });
-
-            routeBuilder.MapControllerRoute("ActiveDiscussionsPaged",
-                            pattern + "boards/activediscussions/page/{pageNumber}",
-                            new { controller = "Boards", action = "ActiveDiscussions" });
-
-            routeBuilder.MapControllerRoute("ActiveDiscussionsRSS",
-                            pattern + "boards/activediscussionsrss",
-                            new { controller = "Boards", action = "ActiveDiscussionsRSS" });
-
-            routeBuilder.MapControllerRoute("PostEdit",
-                            pattern + "boards/postedit/{id}",
-                            new { controller = "Boards", action = "PostEdit" });
-
-            routeBuilder.MapControllerRoute("PostDelete",
-                            pattern + "boards/postdelete/{id}",
-                            new { controller = "Boards", action = "PostDelete" });
-
-            routeBuilder.MapControllerRoute("PostCreate",
-                            pattern + "boards/postcreate/{id}",
-                            new { controller = "Boards", action = "PostCreate" });
-
-            routeBuilder.MapControllerRoute("PostCreateQuote",
-                            pattern + "boards/postcreate/{id}/{quote}",
-                            new { controller = "Boards", action = "PostCreate" });
-
-            routeBuilder.MapControllerRoute("TopicEdit",
-                            pattern + "boards/topicedit/{id}",
-                            new { controller = "Boards", action = "TopicEdit" });
-
-            routeBuilder.MapControllerRoute("TopicDelete",
-                            pattern + "boards/topicdelete/{id}",
-                            new { controller = "Boards", action = "TopicDelete" });
-
-            routeBuilder.MapControllerRoute("TopicCreate",
-                            pattern + "boards/topiccreate/{id}",
-                            new { controller = "Boards", action = "TopicCreate" });
-
-            routeBuilder.MapControllerRoute("TopicMove",
-                            pattern + "boards/topicmove/{id}",
-                            new { controller = "Boards", action = "TopicMove" });
-
-            routeBuilder.MapControllerRoute("TopicWatch",
-                            pattern + "boards/topicwatch/{id}",
-                            new { controller = "Boards", action = "TopicWatch" });
-
-            routeBuilder.MapControllerRoute("TopicSlug",
-                            pattern + "boards/topic/{id}/{slug}",
-                            new { controller = "Boards", action = "Topic" });
-
-            routeBuilder.MapControllerRoute("TopicSlugPaged",
-                            pattern + "boards/topic/{id}/{slug}/page/{pageNumber}",
-                            new { controller = "Boards", action = "Topic" });
-
-            routeBuilder.MapControllerRoute("ForumWatch",
-                            pattern + "boards/forumwatch/{id}",
-                            new { controller = "Boards", action = "ForumWatch" });
-
-            routeBuilder.MapControllerRoute("ForumRSS",
-                            pattern + "boards/forumrss/{id}",
-                            new { controller = "Boards", action = "ForumRSS" });
-
-            routeBuilder.MapControllerRoute("ForumSlug",
-                            pattern + "boards/forum/{id}/{slug}",
-                            new { controller = "Boards", action = "Forum" });
-
-            routeBuilder.MapControllerRoute("ForumSlugPaged",
-                            pattern + "boards/forum/{id}/{slug}/page/{pageNumber}",
-                            new { controller = "Boards", action = "Forum" });
-
-            routeBuilder.MapControllerRoute("ForumGroupSlug",
-                            pattern + "boards/forumgroup/{id}/{slug}",
-                            new { controller = "Boards", action = "ForumGroup" });
-
-            routeBuilder.MapControllerRoute("Search",
-                            pattern + "boards/search",
-                            new { controller = "Boards", action = "Search" });
-
-            //customer profile page
-            routeBuilder.MapControllerRoute("CustomerProfile",
-                            pattern + "profile/{id}",
-                            new { controller = "Profile", action = "Index" });
-
-            routeBuilder.MapControllerRoute("CustomerProfilePaged",
-                            pattern + "profile/{id}/page/{pageNumber}",
-                            new { controller = "Profile", action = "Index" });
         }
 
         private void RegisterBlogRoute(IEndpointRouteBuilder routeBuilder, string pattern)

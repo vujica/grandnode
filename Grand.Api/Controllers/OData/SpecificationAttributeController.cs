@@ -5,6 +5,7 @@ using Grand.Services.Security;
 using MediatR;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNet.OData.Query;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Linq;
@@ -22,11 +23,11 @@ namespace Grand.Api.Controllers.OData
             _permissionService = permissionService;
         }
 
-        [SwaggerOperation(summary: "Get entity from SpecificationAttribute by key")]
+        [SwaggerOperation(summary: "Get entity from SpecificationAttribute by key", OperationId = "GetSpecificationAttributeById")]
         [HttpGet("{key}")]
         public async Task<IActionResult> Get(string key)
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
             var specificationAttribute = await _mediator.Send(new GetQuery<SpecificationAttributeDto>() { Id = key });
@@ -36,22 +37,22 @@ namespace Grand.Api.Controllers.OData
             return Ok(specificationAttribute.FirstOrDefault());
         }
 
-        [SwaggerOperation(summary: "Get entities from SpecificationAttribute")]
+        [SwaggerOperation(summary: "Get entities from SpecificationAttribute", OperationId = "GetSpecificationAttributes")]
         [HttpGet]
         [EnableQuery(HandleNullPropagation = HandleNullPropagationOption.False)]
         public async Task<IActionResult> Get()
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
             return Ok(await _mediator.Send(new GetQuery<SpecificationAttributeDto>()));
         }
 
-        [SwaggerOperation(summary: "Add new entity to SpecificationAttribute")]
+        [SwaggerOperation(summary: "Add new entity to SpecificationAttribute", OperationId = "InsertSpecificationAttribute")]
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] SpecificationAttributeDto model)
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
             if (ModelState.IsValid)
@@ -62,11 +63,11 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Update entity in SpecificationAttribute")]
+        [SwaggerOperation(summary: "Update entity in SpecificationAttribute", OperationId = "UpdateSpecificationAttribute")]
         [HttpPut]
         public async Task<IActionResult> Put([FromBody] SpecificationAttributeDto model)
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
             if (ModelState.IsValid)
@@ -77,11 +78,11 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Partially update entity in SpecificationAttribute")]
+        [SwaggerOperation(summary: "Partially update entity in SpecificationAttribute", OperationId = "PartiallyUpdateSpecificationAttribute")]
         [HttpPatch]
-        public async Task<IActionResult> Patch([FromODataUri] string key, Delta<SpecificationAttributeDto> model)
+        public async Task<IActionResult> Patch([FromODataUri] string key, JsonPatchDocument<SpecificationAttributeDto> model)
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
 
@@ -91,7 +92,7 @@ namespace Grand.Api.Controllers.OData
                 return NotFound();
             }
             var spec = specification.FirstOrDefault();
-            model.Patch(spec);
+            model.ApplyTo(spec);
 
             if (ModelState.IsValid)
             {
@@ -102,11 +103,11 @@ namespace Grand.Api.Controllers.OData
 
         }
 
-        [SwaggerOperation(summary: "Delete entity in SpecificationAttribute")]
+        [SwaggerOperation(summary: "Delete entity in SpecificationAttribute", OperationId = "DeleteSpecificationAttribute")]
         [HttpDelete]
         public async Task<IActionResult> Delete(string key)
         {
-            if (!await _permissionService.Authorize(PermissionSystemName.Attributes))
+            if (!await _permissionService.Authorize(PermissionSystemName.SpecificationAttributes))
                 return Forbid();
 
             var specification = await _mediator.Send(new GetQuery<SpecificationAttributeDto>() { Id = key });

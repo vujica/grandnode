@@ -1,30 +1,28 @@
-﻿using Autofac;
-using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
-using Grand.Core.Infrastructure.DependencyManagement;
+﻿using Grand.Core.Configuration;
+using Grand.Core.DependencyInjection;
+using Grand.Core.TypeFinders;
 using Grand.Plugin.DiscountRequirements.CustomerRoles;
 using Grand.Plugin.DiscountRequirements.HasAllProducts;
 using Grand.Plugin.DiscountRequirements.HasOneProduct;
 using Grand.Plugin.DiscountRequirements.ShoppingCart;
 using Grand.Plugin.DiscountRequirements.Standard.HadSpentAmount;
-using Grand.Services.Discounts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Grand.Plugin.DiscountRequirements.Standard
 {
-    public class DependencyRegistrar : IDependencyRegistrar
+    public class DependencyInjection : IDependencyInjection
     {
-        public virtual void Register(ContainerBuilder builder, ITypeFinder typeFinder, GrandConfig config)
+        public virtual void Register(IServiceCollection serviceCollection, ITypeFinder typeFinder, GrandConfig config)
         {
-            builder.RegisterType<DiscountRequirementsPlugin>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerRoleDiscountRequirementRule>().InstancePerLifetimeScope();
-            builder.RegisterType<HadSpentAmountDiscountRequirementRule>().InstancePerLifetimeScope();
-            builder.RegisterType<HasAllProductsDiscountRequirementRule>().InstancePerLifetimeScope();
-            builder.RegisterType<HasOneProductDiscountRequirementRule>().InstancePerLifetimeScope();
-            builder.RegisterType<ShoppingCartDiscountRequirementRule>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<DiscountRequirementsPlugin>();
+            serviceCollection.AddScoped<CustomerRoleDiscountRequirementRule>();
+            serviceCollection.AddScoped<HadSpentAmountDiscountRequirementRule>();
+            serviceCollection.AddScoped<HasAllProductsDiscountRequirementRule>();
+            serviceCollection.AddScoped<HasOneProductDiscountRequirementRule>();
+            serviceCollection.AddScoped<ShoppingCartDiscountRequirementRule>();
         }
 
-        public int Order
-        {
+        public int Order {
             get { return 10; }
         }
     }

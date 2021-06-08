@@ -10,6 +10,9 @@
             </div>
         </div>
         <div class="form-group">
+            <partial name="_CreateOrUpdate.ProductPrices" model="Model" />
+        </div>
+        <div class="form-group">
             <admin-label asp-for="OldPrice" />
             <div class="col-md-9 col-sm-9">
                 <admin-input asp-for="OldPrice" /> [@Model.PrimaryStoreCurrencyCode]
@@ -268,6 +271,7 @@
                 }, {
                     field: "Price",
                     title: "@T("Admin.Catalog.Products.TierPrices.Fields.Price")",
+                    template: "#:Price# [#:CurrencyCode#]"
                 }, {
                     field: "StartDateTime",
                     title: "@T("Admin.Catalog.Products.TierPrices.Fields.StartDateTime")",
@@ -277,7 +281,7 @@
                 }, {
                     field: "Id",
                     title: "@T("Admin.Common.Edit")",
-                    template: "<button type=\"button\" onclick=\"javascript:OpenWindow('@Url.Content("~/Admin/Product/TierPriceEditPopup/")#=Id#?productId=@(Model.Id)&btnId=btnRefreshTierPrices&formId=product-form', 800, 600, true); return false;\" class=\"k-button\"><span class=\"k-icon k-i-edit\"></span>&nbsp;@T("Admin.Common.Edit")</button>"
+                    template: "<button type=\"button\" onclick=\"javascript:OpenWindow('@Url.Action("TierPriceEditPopup", "Product")/#=Id#?productId=@(Model.Id)&btnId=btnRefreshTierPrices&formId=product-form', 800, 600, true); return false;\" class=\"k-button\"><span class=\"k-icon k-i-edit\"></span>&nbsp;@T("Admin.Common.Edit")</button>"
                 }, {
                     command: { name: "destroy", text: "@T("Admin.Common.Delete")" },
                     title: "@T("Admin.Common.Delete")"

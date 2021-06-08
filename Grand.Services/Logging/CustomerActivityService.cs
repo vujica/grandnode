@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Logging
 {
@@ -18,25 +19,12 @@ namespace Grand.Services.Logging
     /// </summary>
     public class CustomerActivityService : ICustomerActivityService
     {
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        private const string ACTIVITYTYPE_ALL_KEY = "Grand.activitytype.all";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string ACTIVITYTYPE_PATTERN_KEY = "Grand.activitytype.";
-
-        #endregion
-
         #region Fields
 
         /// <summary>
         /// Cache manager
         /// </summary>
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IRepository<ActivityLog> _activityLogRepository;
         private readonly IRepository<ActivityLogType> _activityLogTypeRepository;
         private readonly IWorkContext _workContext;
@@ -55,14 +43,14 @@ namespace Grand.Services.Logging
         /// <param name="webHelper">Web helper</param>
         /// <param name="activityKeywordsProvider">Activity Keywords provider</param>
         public CustomerActivityService(
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             IRepository<ActivityLog> activityLogRepository,
             IRepository<ActivityLogType> activityLogTypeRepository,
             IWorkContext workContext,
             IWebHelper webHelper,
             IActivityKeywordsProvider activityKeywordsProvider)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _activityLogRepository = activityLogRepository;
             _activityLogTypeRepository = activityLogTypeRepository;
             _workContext = workContext;
@@ -94,8 +82,8 @@ namespace Grand.Services.Logging
         protected virtual async Task<IList<ActivityLogTypeForCaching>> GetAllActivityTypesCached()
         {
             //cache
-            string key = string.Format(ACTIVITYTYPE_ALL_KEY);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.ACTIVITYTYPE_ALL_KEY);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var result = new List<ActivityLogTypeForCaching>();
                 var activityLogTypes = await GetAllActivityTypes();
@@ -128,7 +116,7 @@ namespace Grand.Services.Logging
                 throw new ArgumentNullException("activityLogType");
 
             await _activityLogTypeRepository.InsertAsync(activityLogType);
-            await _cacheManager.RemoveByPrefix(ACTIVITYTYPE_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.ACTIVITYTYPE_PATTERN_KEY);
         }
 
         /// <summary>
@@ -141,7 +129,7 @@ namespace Grand.Services.Logging
                 throw new ArgumentNullException("activityLogType");
 
             await _activityLogTypeRepository.UpdateAsync(activityLogType);
-            await _cacheManager.RemoveByPrefix(ACTIVITYTYPE_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.ACTIVITYTYPE_PATTERN_KEY);
         }
 
         /// <summary>
@@ -154,7 +142,7 @@ namespace Grand.Services.Logging
                 throw new ArgumentNullException("activityLogType");
 
             await _activityLogTypeRepository.DeleteAsync(activityLogType);
-            await _cacheManager.RemoveByPrefix(ACTIVITYTYPE_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.ACTIVITYTYPE_PATTERN_KEY);
         }
 
         /// <summary>
@@ -174,9 +162,13 @@ namespace Grand.Services.Logging
         /// </summary>
         /// <param name="activityLogTypeId">Activity log type identifier</param>
         /// <returns>Activity log type item</returns>
-        public virtual Task<ActivityLogType> GetActivityTypeById(string activityLogTypeId)
+        public virtual async Task<ActivityLogType> GetActivityTypeById(string activityLogTypeId)
         {
-            return _activityLogTypeRepository.GetByIdAsync(activityLogTypeId);
+            if (string.IsNullOrEmpty(activityLogTypeId))
+                return null;
+
+            var key = string.Format(CacheKey.ACTIVITYTYPE_BY_KEY, activityLogTypeId);
+            return await _cacheBase.GetAsync(key, () => _activityLogTypeRepository.GetByIdAsync(activityLogTypeId));
         }
 
         /// <summary>

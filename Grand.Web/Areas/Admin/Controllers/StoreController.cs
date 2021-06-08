@@ -37,6 +37,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult List() => View();
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         public async Task<IActionResult> List(DataSourceRequest command)
         {
             var storeModels = (await _storeService.GetAllStores())
@@ -52,6 +53,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = _storeViewModelService.PrepareStoreModel();
@@ -63,11 +65,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             await _storeViewModelService.PrepareWarehouseModel(model);
             //countries
             await _storeViewModelService.PrepareCountryModel(model);
+            //currencies
+            await _storeViewModelService.PrepareCurrencyModel(model);
 
             return View(model);
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create(StoreModel model, bool continueEditing)
         {
             if (ModelState.IsValid)
@@ -82,11 +87,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             await _storeViewModelService.PrepareWarehouseModel(model);
             //countries
             await _storeViewModelService.PrepareCountryModel(model);
+            //currencies
+            await _storeViewModelService.PrepareCurrencyModel(model);
 
             //If we got this far, something failed, redisplay form
             return View(model);
         }
-
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var store = await _storeService.GetStoreById(id);
@@ -101,6 +108,9 @@ namespace Grand.Web.Areas.Admin.Controllers
             await _storeViewModelService.PrepareWarehouseModel(model);
             //countries
             await _storeViewModelService.PrepareCountryModel(model);
+            //currencies
+            await _storeViewModelService.PrepareCurrencyModel(model);
+
             //locales
             await AddLocales(_languageService, model.Locales, (locale, languageId) =>
             {
@@ -112,6 +122,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> Edit(StoreModel model, bool continueEditing)
         {
             var store = await _storeService.GetStoreById(model.Id);
@@ -133,11 +144,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             await _storeViewModelService.PrepareWarehouseModel(model);
             //countries
             await _storeViewModelService.PrepareCountryModel(model);
+            //currencies
+            await _storeViewModelService.PrepareCurrencyModel(model);
 
             return View(model);
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         public async Task<IActionResult> Delete(string id)
         {
             var store = await _storeService.GetStoreById(id);

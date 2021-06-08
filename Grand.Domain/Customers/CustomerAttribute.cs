@@ -48,11 +48,11 @@ namespace Grand.Domain.Customers
         {
             get
             {
-                return (AttributeControlType)this.AttributeControlTypeId;
+                return (AttributeControlType)AttributeControlTypeId;
             }
             set
             {
-                this.AttributeControlTypeId = (int)value;
+                AttributeControlTypeId = (int)value;
             }
         }
         /// <summary>
@@ -60,7 +60,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<CustomerAttributeValue> CustomerAttributeValues
         {
-            get { return _customerAttributeValues ?? (_customerAttributeValues = new List<CustomerAttributeValue>()); }
+            get { return _customerAttributeValues ??= new List<CustomerAttributeValue>(); }
             protected set { _customerAttributeValues = value; }
         }
     }

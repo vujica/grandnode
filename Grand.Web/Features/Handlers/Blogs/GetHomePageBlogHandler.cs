@@ -13,6 +13,7 @@ using Grand.Web.Models.Blogs;
 using Grand.Web.Models.Media;
 using MediatR;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,10 +22,9 @@ namespace Grand.Web.Features.Handlers.Blogs
     public class GetHomePageBlogHandler : IRequestHandler<GetHomePageBlog, HomePageBlogItemsModel>
     {
         private readonly IBlogService _blogService;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IWorkContext _workContext;
         private readonly IStoreContext _storeContext;
-        private readonly IWebHelper _webHelper;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IPictureService _pictureService;
         private readonly ILocalizationService _localizationService;
@@ -38,8 +38,7 @@ namespace Grand.Web.Features.Handlers.Blogs
             IPictureService pictureService,
             ILocalizationService localizationService,
             IDateTimeHelper dateTimeHelper,
-            IWebHelper webHelper,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             BlogSettings blogSettings,
             MediaSettings mediaSettings)
         {
@@ -49,8 +48,7 @@ namespace Grand.Web.Features.Handlers.Blogs
             _pictureService = pictureService;
             _localizationService = localizationService;
             _dateTimeHelper = dateTimeHelper;
-            _webHelper = webHelper;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
 
             _blogSettings = blogSettings;
             _mediaSettings = mediaSettings;
@@ -58,10 +56,10 @@ namespace Grand.Web.Features.Handlers.Blogs
 
         public async Task<HomePageBlogItemsModel> Handle(GetHomePageBlog request, CancellationToken cancellationToken)
         {
-            var cacheKey = string.Format(ModelCacheEventConst.BLOG_HOMEPAGE_MODEL_KEY, 
-                _workContext.WorkingLanguage.Id, 
+            var cacheKey = string.Format(ModelCacheEventConst.BLOG_HOMEPAGE_MODEL_KEY,
+                _workContext.WorkingLanguage.Id,
                 _storeContext.CurrentStore.Id);
-            var cachedModel = await _cacheManager.GetAsync(cacheKey, async () =>
+            var cachedModel = await _cacheBase.GetAsync(cacheKey, async () =>
             {
                 var model = new HomePageBlogItemsModel();
 
@@ -77,6 +75,7 @@ namespace Grand.Web.Features.Handlers.Blogs
                     item.Short = description?.Length > _blogSettings.MaxTextSizeHomePage ? description.Substring(0, _blogSettings.MaxTextSizeHomePage) : description;
                     item.CreatedOn = _dateTimeHelper.ConvertToUserTime(post.StartDateUtc ?? post.CreatedOnUtc, DateTimeKind.Utc);
                     item.GenericAttributes = post.GenericAttributes;
+                    item.Category = (await _blogService.GetBlogCategoryByPostId(post.Id)).FirstOrDefault()?.GetLocalized(x => x.Name, _workContext.WorkingLanguage.Id);
 
                     //prepare picture model
                     if (!string.IsNullOrEmpty(post.PictureId))

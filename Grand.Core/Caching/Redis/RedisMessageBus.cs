@@ -68,14 +68,14 @@ namespace Grand.Core.Caching.Redis
         {
             using (var scope = _serviceProvider.CreateScope())
             {
-                var cache = scope.ServiceProvider.GetRequiredService<ICacheManager>();
+                var cache = scope.ServiceProvider.GetRequiredService<ICacheBase>();
                 switch (message.MessageType)
                 {
                     case (int)MessageEventType.RemoveKey:
                         await cache.RemoveAsync(message.Key, false);
                         break;
                     case (int)MessageEventType.RemoveByPrefix:
-                        await cache.RemoveByPrefixAsync(message.Key, false);
+                        await cache.RemoveByPrefix(message.Key, false);
                         break;
                     case (int)MessageEventType.ClearCache:
                         await cache.Clear(false);

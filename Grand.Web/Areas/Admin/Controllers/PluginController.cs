@@ -1,11 +1,11 @@
 ﻿using Grand.Core;
 using Grand.Core.Caching;
+using Grand.Core.Plugins;
 using Grand.Domain.Cms;
 using Grand.Domain.Customers;
 using Grand.Domain.Payments;
 using Grand.Domain.Shipping;
 using Grand.Domain.Tax;
-using Grand.Core.Plugins;
 using Grand.Framework.Controllers;
 using Grand.Framework.Extensions;
 using Grand.Framework.Kendoui;
@@ -34,6 +34,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace Grand.Web.Areas.Admin.Controllers
@@ -52,7 +53,8 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IStoreService _storeService;
         private readonly IThemeProvider _themeProvider;
         private readonly IMediator _mediator;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
+        private readonly ILogger _logger;
         private readonly PaymentSettings _paymentSettings;
         private readonly ShippingSettings _shippingSettings;
         private readonly TaxSettings _taxSettings;
@@ -71,7 +73,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             IStoreService storeService,
             IThemeProvider themeProvider,
             IMediator mediator,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
+            ILogger logger,
             PaymentSettings paymentSettings,
             ShippingSettings shippingSettings,
             TaxSettings taxSettings,
@@ -87,7 +90,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             _storeService = storeService;
             _themeProvider = themeProvider;
             _mediator = mediator;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
+            _logger = logger;
             _paymentSettings = paymentSettings;
             _shippingSettings = shippingSettings;
             _taxSettings = taxSettings;
@@ -172,6 +176,48 @@ namespace Grand.Web.Areas.Admin.Controllers
             return pluginModel;
         }
 
+        /// <summary>
+        ///  Depth-first recursive delete, with handling for descendant directories open in Windows Explorer.
+        /// </summary>
+        /// <param name="path">Directory path</param>
+        protected void DeleteDirectory(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentNullException(path);
+
+            //find more info about directory deletion
+            //and why we use this approach at https://stackoverflow.com/questions/329355/cannot-delete-directory-with-directory-deletepath-true
+
+            foreach (var directory in Directory.GetDirectories(path))
+            {
+                DeleteDirectory(directory);
+            }
+
+            try
+            {
+                Directory.Delete(path, true);
+            }
+            catch (IOException)
+            {
+                Directory.Delete(path, true);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Directory.Delete(path, true);
+            }
+        }
+
+        protected byte[] ToByteArray(Stream stream)
+        {
+            using (stream)
+            {
+                using (MemoryStream memStream = new MemoryStream())
+                {
+                    stream.CopyTo(memStream);
+                    return memStream.ToArray();
+                }
+            }
+        }
         #endregion
 
         #region Methods
@@ -236,7 +282,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Installed"));
 
                 //restart application
-                _webHelper.RestartAppDomain();
+                _webHelper.StopApplication();
             }
             catch (Exception exc)
             {
@@ -272,7 +318,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Uninstalled"));
 
                 //restart application
-                _webHelper.RestartAppDomain();
+                _webHelper.StopApplication();
             }
             catch (Exception exc)
             {
@@ -305,7 +351,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 {
                     if (Path.GetFileName(folder) != "bin" && Directory.GetFiles(folder).Select(x => Path.GetFileName(x)).Contains(pluginDescriptor.PluginFileName))
                     {
-                        CommonHelper.DeleteDirectory(folder);
+                        DeleteDirectory(folder);
                     }
                 }
 
@@ -313,7 +359,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Removed"));
 
                 //restart application
-                _webHelper.RestartAppDomain();
+                _webHelper.StopApplication();
             }
             catch (Exception exc)
             {
@@ -326,7 +372,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult ReloadList()
         {
             //restart application
-            _webHelper.RestartAppDomain();
+            _webHelper.StopApplication();
             return RedirectToAction("List");
         }
 
@@ -374,7 +420,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
 
             //restart application
-            _webHelper.RestartAppDomain();
+            _webHelper.StopApplication();
 
             return RedirectToAction("List");
         }
@@ -439,7 +485,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             var uploadedItemDirectoryName = "";
             IDescriptor descriptor = null;
-            using (var archive = ZipFile.OpenRead(archivePath))
+            using (var archive = ZipFile.Open(archivePath, ZipArchiveMode.Update))
             {
                 //the archive should contain only one root directory (the plugin one or the theme one)
                 var rootDirectories = archive.Entries.Where(entry => entry.FullName.Count(ch => ch == '/') == 1 && entry.FullName.EndsWith("/")).ToList();
@@ -452,32 +498,67 @@ namespace Grand.Web.Areas.Admin.Controllers
                 //get directory name (remove the ending /)
                 uploadedItemDirectoryName = rootDirectories.First().FullName.TrimEnd('/');
 
-                var pluginDescriptorEntry = archive.Entries.Where(x => x.FullName.Contains("Description.txt")).FirstOrDefault();
-                if (pluginDescriptorEntry != null)
-                {
-                    using (var unzippedEntryStream = pluginDescriptorEntry.Open())
-                    {
-                        using (var reader = new StreamReader(unzippedEntryStream))
-                        {
-                            {
-                                descriptor = GetPluginDescriptorFromText(reader.ReadToEnd());
-
-                                //ensure that the plugin current version is supported
-                                if (!(descriptor as PluginDescriptor).SupportedVersions.Contains(GrandVersion.CurrentVersion))
-                                    throw new Exception($"This plugin doesn't support the current version - {GrandVersion.CurrentVersion}");
-                            }
-                        }
-                    }
-                }
-
-                var themeDescriptorEntry = archive.Entries.Where(x => x.FullName.Contains("theme.config")).FirstOrDefault();
+                var themeDescriptorEntry = archive.Entries.Where(x => x.FullName.Contains("theme.cfg")).FirstOrDefault();
                 if (themeDescriptorEntry != null)
                 {
-                    using (var unzippedEntryStream = themeDescriptorEntry.Open())
+                    using var unzippedEntryStream = themeDescriptorEntry.Open();
+                    using var reader = new StreamReader(unzippedEntryStream);
+                    descriptor = _themeProvider.GetThemeDescriptorFromText(reader.ReadToEnd());
+                }
+                else
+                {
+                    var supportedVersion = false;
+                    var globpath = "";
+                    foreach (var entry in archive.Entries.Where(x => x.FullName.Contains(".dll")))
                     {
-                        using (var reader = new StreamReader(unzippedEntryStream))
+                        using (var unzippedEntryStream = entry.Open())
                         {
-                            descriptor = _themeProvider.GetThemeDescriptorFromText(reader.ReadToEnd());
+                            try
+                            {
+                                var assembly = Assembly.Load(ToByteArray(unzippedEntryStream));
+                                var pluginInfo = assembly.GetCustomAttribute<PluginInfoAttribute>();
+                                if (pluginInfo != null)
+                                {
+                                    if (pluginInfo.SupportedVersion == GrandVersion.SupportedPluginVersion)
+                                    {
+                                        supportedVersion = true;
+                                        globpath = entry.FullName.Substring(0, entry.FullName.LastIndexOf("/"));
+                                        archive.Entries.Where(x => !x.FullName.Contains(globpath)).ToList()
+                                        .ForEach(y => { archive.GetEntry(y.FullName).Delete(); });
+
+                                        descriptor = new PluginDescriptor();
+                                        break;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(ex.Message);
+                            };
+                        }
+                    }
+                    if (!supportedVersion)
+                        throw new Exception($"This plugin doesn't support the current version - {GrandVersion.SupportedPluginVersion}");
+                    else
+                    {
+                        var pluginname = globpath.Substring(globpath.LastIndexOf('/') + 1);
+                        var mainpath = "";
+
+                        var entries = archive.Entries.ToArray();
+                        foreach (var y in entries)
+                        {
+                            if (y.Name.Length > 0)
+                                mainpath = y.FullName.Replace(y.Name, "").Replace(globpath, pluginname).TrimEnd('/');
+                            else
+                                mainpath = y.FullName.Replace(globpath, pluginname);
+
+                            var newEntry = archive.CreateEntry($"{mainpath}/{y.Name}");
+                            using (var a = y.Open())
+                            using (var b = newEntry.Open())
+                                a.CopyTo(b);
+
+                            archive.GetEntry(y.FullName).Delete();
+
                         }
                     }
                 }
@@ -492,13 +573,10 @@ namespace Grand.Web.Areas.Admin.Controllers
             var directoryPath = descriptor is PluginDescriptor ? pluginsDirectory : CommonHelper.MapPath("~/Themes");
             var pathToUpload = Path.Combine(directoryPath, uploadedItemDirectoryName);
 
-            //ensure it's a new directory (e.g. some old files are not required when re-uploading a plugin)
-            //furthermore, zip extract functionality cannot override existing files
-            //but there could deletion issues (related to file locking, etc). In such cases the directory should be deleted manually
             try
             {
-                if (System.IO.Directory.Exists(pathToUpload))
-                    CommonHelper.DeleteDirectory(pathToUpload);
+                if (Directory.Exists(pathToUpload))
+                    DeleteDirectory(pathToUpload);
             }
             catch { }
 
@@ -576,7 +654,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 {
                     pluginDescriptor.LimitedToStores = model.SelectedStoreIds.ToList();
                 }
-                PluginFileParser.SavePluginDescriptionFile(pluginDescriptor);
+                PluginFileParser.SavePluginConfigFile(pluginDescriptor);
                 //reset plugin cache
                 _pluginFinder.ReloadPlugins();
                 //locales
@@ -688,7 +766,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                         }
                     }
                 }
-                await _cacheManager.Clear();
+                await _cacheBase.Clear();
                 ViewBag.RefreshPage = true;
                 ViewBag.btnId = btnId;
                 ViewBag.formId = formId;

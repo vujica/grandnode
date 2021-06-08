@@ -5,6 +5,7 @@ using Grand.Services.Security;
 using MediatR;
 using Microsoft.AspNet.OData;
 using Microsoft.AspNet.OData.Query;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Grand.Api.Controllers.OData
             _permissionService = permissionService;
         }
 
-        [SwaggerOperation(summary: "Get entity from Product by key")]
+        [SwaggerOperation(summary: "Get entity from Product by key", OperationId = "GetProductById")]
         [HttpGet("{key}")]
         public async Task<IActionResult> Get(string key)
         {
@@ -39,7 +40,7 @@ namespace Grand.Api.Controllers.OData
             return Ok(product.FirstOrDefault());
         }
 
-        [SwaggerOperation(summary: "Get entities from Product")]
+        [SwaggerOperation(summary: "Get entities from Product", OperationId = "GetProducts")]
         [HttpGet]
         [EnableQuery(HandleNullPropagation = HandleNullPropagationOption.False)]
         public async Task<IActionResult> Get()
@@ -50,7 +51,7 @@ namespace Grand.Api.Controllers.OData
             return Ok(await _mediator.Send(new GetQuery<ProductDto>()));
         }
 
-        [SwaggerOperation(summary: "Add new entity to Product")]
+        [SwaggerOperation(summary: "Add new entity to Product", OperationId = "InsertProduct")]
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] ProductDto model)
         {
@@ -65,7 +66,7 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Update entity in Product")]
+        [SwaggerOperation(summary: "Update entity in Product", OperationId = "UpdateProduct")]
         [HttpPut]
         public async Task<IActionResult> Put([FromBody] ProductDto model)
         {
@@ -80,9 +81,9 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Partially update entity in Product")]
+        [SwaggerOperation(summary: "Partially update entity in Product", OperationId = "PartiallyUpdateProduct")]
         [HttpPatch]
-        public async Task<IActionResult> Patch([FromODataUri] string key, Delta<ProductDto> model)
+        public async Task<IActionResult> Patch([FromODataUri] string key, [FromBody] JsonPatchDocument<ProductDto> model)
         {
             if (!await _permissionService.Authorize(PermissionSystemName.Products))
                 return Forbid();
@@ -92,7 +93,7 @@ namespace Grand.Api.Controllers.OData
                 return NotFound();
 
             var pr = product.FirstOrDefault();
-            model.Patch(pr);
+            model.ApplyTo(pr, ModelState);
 
             if (ModelState.IsValid)
             {
@@ -102,7 +103,7 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Delete entity in Product")]
+        [SwaggerOperation(summary: "Delete entity in Product", OperationId = "DeleteProduct")]
         [HttpDelete]
         public async Task<IActionResult> Delete(string key)
         {
@@ -120,8 +121,8 @@ namespace Grand.Api.Controllers.OData
 
         //odata/Product(id)/UpdateStock
         //body: { "Stock": 10 }
-        [SwaggerOperation(summary: "Invoke action UpdateStock")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateStock", OperationId = "UpdateStock")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateStock(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -150,8 +151,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product category
 
-        [SwaggerOperation(summary: "Invoke action CreateProductCategory")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductCategory", OperationId = "CreateProductCategory")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductCategory(string key, [FromBody] ProductCategoryDto productCategory)
         {
@@ -177,8 +178,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductCategory")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductCategory", OperationId = "UpdateProductCategory")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductCategory(string key, [FromBody] ProductCategoryDto productCategory)
         {
@@ -205,8 +206,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductCategory")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductCategory", OperationId = "DeleteProductCategory")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductCategory(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -242,8 +243,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product manufacturer
 
-        [SwaggerOperation(summary: "Invoke action CreateProductManufacturer")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductManufacturer", OperationId = "CreateProductManufacturer")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductManufacturer(string key, [FromBody] ProductManufacturerDto productManufacturer)
         {
@@ -270,8 +271,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductManufacturer")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductManufacturer", OperationId = "UpdateProductManufacturer")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductManufacturer(string key, [FromBody] ProductManufacturerDto productManufacturer)
         {
@@ -297,8 +298,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductManufacturer")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductManufacturer", OperationId = "DeleteProductManufacturer")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductManufacturer(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -333,8 +334,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product picture
 
-        [SwaggerOperation(summary: "Invoke action CreateProductPicture")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductPicture", OperationId = "CreateProductPicture")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductPicture(string key, [FromBody] ProductPictureDto productPicture)
         {
@@ -361,8 +362,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductPicture")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductPicture", OperationId = "UpdateProductPicture")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductPicture(string key, [FromBody] ProductPictureDto productPicture)
         {
@@ -389,8 +390,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductPicture")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductPicture", OperationId = "DeleteProductPicture")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductPicture(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -426,8 +427,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product specification
 
-        [SwaggerOperation(summary: "Invoke action CreateProductSpecification")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductSpecification", OperationId = "CreateProductSpecification")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductSpecification(string key, [FromBody] ProductSpecificationAttributeDto productSpecification)
         {
@@ -453,8 +454,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductSpecification")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductSpecification", OperationId = "UpdateProductSpecification")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductSpecification(string key, [FromBody] ProductSpecificationAttributeDto productSpecification)
         {
@@ -480,8 +481,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductSpecification")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductSpecification", OperationId = "DeleteProductSpecification")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductSpecification(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -517,8 +518,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product tierprice
 
-        [SwaggerOperation(summary: "Invoke action CreateProductTierPrice")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductTierPrice", OperationId = "CreateProductTierPrice")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductTierPrice(string key, [FromBody] ProductTierPriceDto productTierPrice)
         {
@@ -544,8 +545,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductTierPrice")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductTierPrice", OperationId = "UpdateProductTierPrice")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductTierPrice(string key, [FromBody] ProductTierPriceDto productTierPrice)
         {
@@ -571,8 +572,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductTierPrice")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductTierPrice", OperationId = "DeleteProductTierPrice")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductTierPrice(string key, [FromBody] ODataActionParameters parameters)
         {
@@ -607,8 +608,8 @@ namespace Grand.Api.Controllers.OData
 
         #region Product attribute mapping
 
-        [SwaggerOperation(summary: "Invoke action CreateProductAttributeMapping")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action CreateProductAttributeMapping", OperationId = "CreateProductAttributeMapping")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> CreateProductAttributeMapping(string key, [FromBody] ProductAttributeMappingDto productAttributeMapping)
         {
@@ -634,8 +635,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action UpdateProductAttributeMapping")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action UpdateProductAttributeMapping", OperationId = "UpdateProductAttributeMapping")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> UpdateProductAttributeMapping(string key, [FromBody] ProductAttributeMappingDto productAttributeMapping)
         {
@@ -661,8 +662,8 @@ namespace Grand.Api.Controllers.OData
             return BadRequest(ModelState);
         }
 
-        [SwaggerOperation(summary: "Invoke action DeleteProductAttributeMapping")]
-        [Route("[action]/({key})")]
+        [SwaggerOperation(summary: "Invoke action DeleteProductAttributeMapping", OperationId = "DeleteProductAttributeMapping")]
+        [Route("({key})/[action]")]
         [HttpPost]
         public async Task<IActionResult> DeleteProductAttributeMapping(string key, [FromBody] ODataActionParameters parameters)
         {

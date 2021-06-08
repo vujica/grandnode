@@ -100,7 +100,6 @@ namespace Grand.Web.Features.Handlers.Customers
             model.AcceptPrivacyPolicyEnabled = _customerSettings.AcceptPrivacyPolicyEnabled;
             model.UsernamesEnabled = _customerSettings.UsernamesEnabled;
             model.CheckUsernameAvailabilityEnabled = _customerSettings.CheckUsernameAvailabilityEnabled;
-            model.HoneypotEnabled = _securitySettings.HoneypotEnabled;
             model.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnRegistrationPage;
 
             //countries and states
@@ -147,7 +146,7 @@ namespace Grand.Web.Features.Handlers.Customers
             var customAttributes = await _mediator.Send(new GetCustomAttributes() {
                 Customer = request.Customer,
                 Language = request.Language,
-                OverrideAttributesXml = request.OverrideCustomCustomerAttributesXml
+                OverrideAttributes = request.OverrideCustomCustomerAttributes
             });
             foreach (var item in customAttributes)
             {

@@ -7,7 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using Wangkanai.Detection;
+using Wangkanai.Detection.Models;
+using Wangkanai.Detection.Services;
 
 namespace Grand.Framework.TagHelpers.Admin
 {
@@ -15,12 +16,12 @@ namespace Grand.Framework.TagHelpers.Admin
     public partial class AdminTabStripTagHelper : TagHelper
     {
         private readonly IMediator _mediator;
-        private readonly IDeviceResolver _resolver;
+        private readonly IDetectionService _detectionService;
 
-        public AdminTabStripTagHelper(IMediator mediator, IDeviceResolver deviceResolver)
+        public AdminTabStripTagHelper(IMediator mediator, IDetectionService detectionService)
         {
             _mediator = mediator;
-            _resolver = deviceResolver;
+            _detectionService = detectionService;
         }
 
         [HtmlAttributeName("SetTabPos")]
@@ -35,9 +36,9 @@ namespace Grand.Framework.TagHelpers.Admin
         public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
         {
             ViewContext.ViewData[typeof(AdminTabContentTagHelper).FullName] = new List<string>();
-            var content = await output.GetChildContentAsync();
+            var _ = await output.GetChildContentAsync();
             var list = (List<string>)ViewContext.ViewData[typeof(AdminTabContentTagHelper).FullName];
-            if (_resolver.Device.Type == DeviceType.Mobile && SetTabPos)
+            if (_detectionService.Device.Type == Device.Mobile || _detectionService.Device.Type == Device.Tablet)
                 SetTabPos = false;
 
             output.TagName = "div";

@@ -303,11 +303,6 @@ namespace Grand.Domain.Catalog
         public int ProductsAlsoPurchasedNumber { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether we should process attribute change using AJAX. It's used for dynamical attribute change, SKU/GTIN update of combinations, conditional attributes
-        /// </summary>
-        public bool AjaxProcessAttributeChange { get; set; }
-
-        /// <summary>
         /// Gets or sets a number of product tags that appear in the tag cloud
         /// </summary>
         public int NumberOfProductTags { get; set; }
@@ -453,5 +448,10 @@ namespace Grand.Domain.Catalog
         /// Gets or sets a display order of ProductSortingEnum values 
         /// </summary>
         public Dictionary<int, int> ProductSortingEnumDisplayOrder { get; set; }
+
+        /// <summary>
+        /// Gets or sets a sorting by availability
+        /// </summary>
+        public bool SortingByAvailability { get; set; }
     }
 }

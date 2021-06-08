@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Directory
 {
@@ -20,40 +21,11 @@ namespace Grand.Services.Directory
     /// </summary>
     public partial class CurrencyService : ICurrencyService
     {
-        #region Constants
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : currency ID
-        /// </remarks>
-        private const string CURRENCIES_BY_ID_KEY = "Grand.currency.id-{0}";
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : currency code
-        /// </remarks>
-        private const string CURRENCIES_BY_CODE = "Grand.currency.code-{0}";
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : show hidden records?
-        /// </remarks>
-        private const string CURRENCIES_ALL_KEY = "Grand.currency.all-{0}";
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string CURRENCIES_PATTERN_KEY = "Grand.currency.";
-
-        #endregion
-
         #region Fields
 
         private readonly IRepository<Currency> _currencyRepository;
         private readonly IStoreMappingService _storeMappingService;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IPluginFinder _pluginFinder;
         private readonly IMediator _mediator;
         private readonly CurrencySettings _currencySettings;
@@ -73,14 +45,14 @@ namespace Grand.Services.Directory
         /// <param name="currencySettings">Currency settings</param>
         /// <param name="pluginFinder">Plugin finder</param>
         /// <param name="mediator">Mediator</param>
-        public CurrencyService(ICacheManager cacheManager,
+        public CurrencyService(ICacheBase cacheManager,
             IRepository<Currency> currencyRepository,
             IStoreMappingService storeMappingService,
             CurrencySettings currencySettings,
             IPluginFinder pluginFinder,
             IMediator mediator)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _currencyRepository = currencyRepository;
             _storeMappingService = storeMappingService;
             _currencySettings = currencySettings;
@@ -116,7 +88,7 @@ namespace Grand.Services.Directory
 
             await _currencyRepository.DeleteAsync(currency);
 
-            await _cacheManager.RemoveByPrefix(CURRENCIES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.CURRENCIES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityDeleted(currency);
@@ -129,8 +101,8 @@ namespace Grand.Services.Directory
         /// <returns>Currency</returns>
         public virtual Task<Currency> GetCurrencyById(string currencyId)
         {
-            string key = string.Format(CURRENCIES_BY_ID_KEY, currencyId);
-            return _cacheManager.GetAsync(key, () => _currencyRepository.GetByIdAsync(currencyId));
+            string key = string.Format(CacheKey.CURRENCIES_BY_ID_KEY, currencyId);
+            return _cacheBase.GetAsync(key, () => _currencyRepository.GetByIdAsync(currencyId));
         }
 
         /// <summary>
@@ -167,8 +139,8 @@ namespace Grand.Services.Directory
             if (string.IsNullOrEmpty(currencyCode))
                 return null;
 
-            var key = string.Format(CURRENCIES_BY_CODE, currencyCode);
-            return await _cacheManager.GetAsync(key, () =>
+            var key = string.Format(CacheKey.CURRENCIES_BY_CODE, currencyCode);
+            return await _cacheBase.GetAsync(key, () =>
             {
                 var query = from q in _currencyRepository.Table
                             where q.CurrencyCode.ToLowerInvariant() == currencyCode.ToLower()
@@ -185,8 +157,8 @@ namespace Grand.Services.Directory
         /// <returns>Currencies</returns>
         public virtual async Task<IList<Currency>> GetAllCurrencies(bool showHidden = false, string storeId = "")
         {
-            string key = string.Format(CURRENCIES_ALL_KEY, showHidden);
-            var currencies = await _cacheManager.GetAsync(key, () =>
+            string key = string.Format(CacheKey.CURRENCIES_ALL_KEY, showHidden);
+            var currencies = await _cacheBase.GetAsync(key, () =>
             {
                 var query = _currencyRepository.Table;
 
@@ -215,7 +187,7 @@ namespace Grand.Services.Directory
 
             await _currencyRepository.InsertAsync(currency);
 
-            await _cacheManager.RemoveByPrefix(CURRENCIES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.CURRENCIES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityInserted(currency);
@@ -232,7 +204,7 @@ namespace Grand.Services.Directory
 
             await _currencyRepository.UpdateAsync(currency);
 
-            await _cacheManager.RemoveByPrefix(CURRENCIES_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.CURRENCIES_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityUpdated(currency);

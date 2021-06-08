@@ -102,21 +102,6 @@ function mainMenuReplace() {
     }
 }
 
-// search box
-
-function searchReplace() {
-    if (window.matchMedia('(max-width: 991px)').matches) {
-        if ($("#searchModal #small-search-box-form").length < 1) {
-            $('#small-search-box-form').prependTo('#searchModal');
-        }
-    }
-    else {
-        if ($(".formSearch #small-search-box-form").length < 1) {
-            $('#small-search-box-form').prependTo('.formSearch');
-        }
-    }
-}
-
 // back to top
 
 function BackToTop() {
@@ -207,7 +192,6 @@ $(document).ready(function () {
     edgeFix();
     CartFix();
     mainMenuReplace();
-    searchReplace();
     LeftSide();
     itemsStatistics();
     dataCountdown();
@@ -216,7 +200,6 @@ $(document).ready(function () {
 
     $(window).resize(function () {
         mainMenuReplace();
-        searchReplace();
         LeftSide();
         productInfo();
     });
@@ -317,6 +300,9 @@ $(document).ready(function () {
             $('.modal').modal('hide');
         }
     });
+    $('#ModalPrivacyPreference').on('hide.bs.modal', function (e) {
+        $('#ModalPrivacyPreference').empty();
+    });
 });
 
 function OpenWindow(query, w, h, scroll) {
@@ -386,6 +372,11 @@ function displayPopupQuickView(html) {
     dataCountdown();
 }
 
+function displayPopupPrivacyPreference(html) {
+    $('#ModalPrivacyPreference').html(html).modal('show');
+    $("body.modal-open").removeAttr("style");
+    $(".navUp").removeAttr("style");
+}
 
 var barNotificationTimeout;
 function displayBarNotification(message, messagetype, timeout) {
@@ -490,6 +481,46 @@ function sendcontactusform(urladd) {
     }
 }
 
+
+function GetPrivacyPreference(href) {
+    $.ajax({
+        cache: false,
+        url: href,
+        success: function (data) {
+            displayPopupPrivacyPreference(data.html)
+        },
+        error: function (xhr, ajaxOptions, thrownError) {
+            alert('Failed to get privacy preference.');
+        }
+    });
+}
+
+function SavePrivacyPreference(href) {
+    $.ajax({
+        cache: false,
+        url: href,
+        data: $('#frmPrivacyPreference').serialize(),
+        type: 'post',
+        success: function (data) {
+            $('#ModalPrivacyPreference').modal('hide');
+        },
+        error: function (xhr, ajaxOptions, thrownError) {
+            alert('Failed to get privacy preference.');
+        }
+    });
+}
+
+function SaveCurrentPossition(href, latitude, longitude) {    
+    $.ajax({
+        cache: false,
+        url: href,
+        data: { latitude: latitude, longitude: longitude },
+        type: 'post',
+        error: function (xhr, ajaxOptions, thrownError) {
+            alert('Failed to save current possition.');
+        }
+    });
+}
 
 function newAddress(isNew) {
     if (isNew) {

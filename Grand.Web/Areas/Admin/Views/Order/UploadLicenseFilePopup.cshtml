@@ -1,10 +1,10 @@
 ﻿@model OrderModel.UploadLicenseModel
 @{
-    Layout = "~/Areas/Admin/Views/Shared/_AdminPopupLayout.cshtml";
+    Layout = Grand.Web.Areas.Admin.Extensions.Constants.Layout_AdminPopup;
     //page title
     ViewBag.Title = T("Admin.Orders.Products.License.UploadFile").Text;
 }
-<form asp-area="Admin" asp-controller="Order" asp-action="UploadLicenseFilePopup" method="post">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Order" asp-action="UploadLicenseFilePopup" method="post">
     
     <div class="row">
         <div class="col-md-12">
@@ -17,7 +17,7 @@
                 </div>
                 <div class="x_content form">
                     <input type="submit" name="uploadlicense" value="@T("Admin.Common.Save")" id="uploadlicense" class="btn green" />
-                    @if (!String.IsNullOrEmpty(Model.LicenseDownloadId))
+                    @if (!string.IsNullOrEmpty(Model.LicenseDownloadId))
                     {
                         <input type="submit" name="deletelicense" value="@T("Admin.Common.Delete")" id="deletelicense" class="btn red" />
                     }
@@ -30,9 +30,11 @@
     @if (ViewBag.RefreshPage == true)
     {
         <script>
-        try {window.opener.document.forms['@(Context.Request.Query["formId"])'].@(Context.Request.Query["btnId"]).click();}
-        catch (e){}
-        window.close();
+            try {
+                window.opener.location.href = window.opener.location.href;
+            }
+            catch (e){}
+            window.close();
         </script>
     }
 

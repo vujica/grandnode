@@ -22,6 +22,11 @@ namespace Grand.Domain.Orders
         public decimal Amount { get; set; }
 
         /// <summary>
+        /// Gets or sets the currency code
+        /// </summary>
+        public string CurrencyCode { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether gift card is activated
         /// </summary>
         public bool IsGiftCardActivated { get; set; }
@@ -73,11 +78,11 @@ namespace Grand.Domain.Orders
         {
             get
             {
-                return (GiftCardType)this.GiftCardTypeId;
+                return (GiftCardType)GiftCardTypeId;
             }
             set
             {
-                this.GiftCardTypeId = (int)value;
+                GiftCardTypeId = (int)value;
             }
         }
         
@@ -86,7 +91,7 @@ namespace Grand.Domain.Orders
         /// </summary>
         public virtual ICollection<GiftCardUsageHistory> GiftCardUsageHistory
         {
-            get { return _giftCardUsageHistory ?? (_giftCardUsageHistory = new List<GiftCardUsageHistory>()); }
+            get { return _giftCardUsageHistory ??= new List<GiftCardUsageHistory>(); }
             protected set { _giftCardUsageHistory = value; }
         }
         

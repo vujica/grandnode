@@ -39,6 +39,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IWorkContext _workContext;
         private readonly IPdfService _pdfService;
         private readonly IProductService _productService;
+        private readonly IInventoryManageService _inventoryManageService;
         private readonly IShipmentService _shipmentService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IMediator _mediator;
@@ -52,6 +53,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             IWorkContext workContext,
             IPdfService pdfService,
             IProductService productService,
+            IInventoryManageService inventoryManageService,
             IShipmentService shipmentService,
             IDateTimeHelper dateTimeHelper,
             IMediator mediator)
@@ -62,6 +64,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             _workContext = workContext;
             _pdfService = pdfService;
             _productService = productService;
+            _inventoryManageService = inventoryManageService;
             _shipmentService = shipmentService;
             _dateTimeHelper = dateTimeHelper;
             _mediator = mediator;
@@ -75,6 +78,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> ShipmentListSelect(DataSourceRequest command, ShipmentListModel model)
         {
@@ -100,6 +104,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> ShipmentsByOrder(string orderId, DataSourceRequest command)
         {
@@ -143,6 +148,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> ShipmentsItemsByShipmentId(string shipmentId, DataSourceRequest command)
         {
@@ -173,6 +179,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> AddShipment(string orderId)
         {
             var order = await _orderService.GetOrderById(orderId);
@@ -194,6 +201,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         public async Task<IActionResult> AddShipment(string orderId, IFormCollection form, bool continueEditing)
@@ -245,6 +253,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("AddShipment", new { orderId = orderId });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> ShipmentDetails(string id)
         {
             var shipment = await _shipmentService.GetShipmentById(id);
@@ -271,6 +280,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> DeleteShipment(string id)
         {
@@ -305,7 +315,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 var product = await _productService.GetProductById(shipmentItem.ProductId);
                 shipmentItem.ShipmentId = shipment.Id;
                 if (product != null)
-                    await _productService.ReverseBookedInventory(product, shipment, shipmentItem);
+                    await _inventoryManageService.ReverseBookedInventory(product, shipment, shipmentItem);
             }
 
             await _shipmentService.DeleteShipment(shipment);
@@ -324,6 +334,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", "Order", new { Id = order.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("settrackingnumber")]
         public async Task<IActionResult> SetTrackingNumber(ShipmentModel model)
@@ -358,6 +369,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("ShipmentDetails", new { id = shipment.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("setadmincomment")]
         public async Task<IActionResult> SetShipmentAdminComment(ShipmentModel model)
@@ -392,6 +404,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("ShipmentDetails", new { id = shipment.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("setasshipped")]
         public async Task<IActionResult> SetAsShipped(string id)
@@ -433,6 +446,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("saveshippeddate")]
         public async Task<IActionResult> EditShippedDate(ShipmentModel model)
@@ -479,6 +493,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("setasdelivered")]
         public async Task<IActionResult> SetAsDelivered(string id)
@@ -521,6 +536,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("savedeliverydate")]
         public async Task<IActionResult> EditDeliveryDate(ShipmentModel model)
@@ -568,7 +584,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
-
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("ShipmentDetails")]
         [FormValueRequired("save-generic-attributes")]
         public async Task<IActionResult> EditGenericAttributes(string id, ShipmentModel model)
@@ -601,6 +617,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("ShipmentDetails", new { id = shipment.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> PdfPackagingSlip(string shipmentId)
         {
             var shipment = await _shipmentService.GetShipmentById(shipmentId);
@@ -636,6 +653,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", string.Format("packagingslip_{0}.pdf", shipment.Id));
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("exportpackagingslips-all")]
         public async Task<IActionResult> PdfPackagingSlipAll(ShipmentListModel model)
@@ -643,6 +661,10 @@ namespace Grand.Web.Areas.Admin.Controllers
             if (_workContext.CurrentCustomer.IsStaff())
             {
                 model.StoreId = _workContext.CurrentCustomer.StaffStoreId;
+            }
+            if (_workContext.CurrentVendor != null)
+            {
+                model.VendorId = _workContext.CurrentVendor.Id;
             }
 
             //load shipments
@@ -664,6 +686,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", "packagingslips.pdf");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> PdfPackagingSlipSelected(string selectedIds)
         {
@@ -713,6 +736,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", "packagingslips.pdf");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> SetAsShippedSelected(ICollection<string> selectedIds)
         {
@@ -757,6 +781,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(new { Result = true });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> SetAsDeliveredSelected(ICollection<string> selectedIds)
         {
@@ -803,6 +828,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Shipment notes
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> ShipmentNotesSelect(string shipmentId, DataSourceRequest command)
         {
@@ -826,6 +852,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> ShipmentNoteAdd(string shipmentId, string downloadId, bool displayToCustomer, string message)
         {
             var shipment = await _shipmentService.GetShipmentById(shipmentId);
@@ -844,6 +871,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(new { Result = true });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> ShipmentNoteDelete(string id, string shipmentId)
         {

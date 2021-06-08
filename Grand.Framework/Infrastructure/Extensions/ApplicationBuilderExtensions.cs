@@ -1,5 +1,4 @@
-﻿using Autofac;
-using Grand.Core;
+﻿using Grand.Core;
 using Grand.Core.Configuration;
 using Grand.Core.Data;
 using Grand.Domain.Common;
@@ -20,6 +19,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using WebMarkupMin.AspNetCore3;
+using Grand.Core.Routing;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Grand.Framework.Infrastructure.Extensions
 {
@@ -35,7 +36,7 @@ namespace Grand.Framework.Infrastructure.Extensions
         /// <param name="webHostEnvironment">Web Host Environment</param>
         public static void ConfigureRequestPipeline(this IApplicationBuilder application, IWebHostEnvironment webHostEnvironment)
         {
-            EngineContext.Current.ConfigureRequestPipeline(application, webHostEnvironment);
+            Engine.ConfigureRequestPipeline(application, webHostEnvironment);
         }
 
         /// <summary>
@@ -43,9 +44,9 @@ namespace Grand.Framework.Infrastructure.Extensions
         /// </summary>
         /// <param name="container">ContainerBuilder from autofac</param>
         /// <param name="configuration">configuration</param>
-        public static void ConfigureContainer(this ContainerBuilder container, Microsoft.Extensions.Configuration.IConfiguration configuration)
+        public static void ConfigureContainer(this IServiceCollection container, Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
-            EngineContext.Current.ConfigureContainer(container, configuration);
+            Engine.ConfigureContainer(container, configuration);
         }
 
         /// <summary>
@@ -57,7 +58,7 @@ namespace Grand.Framework.Infrastructure.Extensions
             var serviceProvider = application.ApplicationServices;
             var grandConfig = serviceProvider.GetRequiredService<GrandConfig>();
             var hostingEnvironment = serviceProvider.GetRequiredService<IWebHostEnvironment>();
-            bool useDetailedExceptionPage = grandConfig.DisplayFullErrorStack || hostingEnvironment.IsDevelopment();
+            var useDetailedExceptionPage = grandConfig.DisplayFullErrorStack || hostingEnvironment.IsDevelopment();
             if (useDetailedExceptionPage)
             {
                 //get detailed exceptions for developing and testing purposes
@@ -117,8 +118,8 @@ namespace Grand.Framework.Infrastructure.Extensions
                 //handle 404 Not Found
                 if (context.HttpContext.Response.StatusCode == 404)
                 {
-                    string authHeader = context.HttpContext.Request.Headers["Authorization"];
-                    var apirequest = authHeader != null && authHeader.Split(' ')[0] == "Bearer";
+                    string authHeader = context.HttpContext.Request.Headers[HeaderNames.Authorization];
+                    var apirequest = authHeader != null && authHeader.Split(' ')[0] == JwtBearerDefaults.AuthenticationScheme;
 
                     var webHelper = context.HttpContext.RequestServices.GetRequiredService<IWebHelper>();
                     if (!apirequest && !webHelper.IsStaticResource())
@@ -179,6 +180,15 @@ namespace Grand.Framework.Infrastructure.Extensions
             {
                 endpoints.ServiceProvider.GetRequiredService<IRoutePublisher>().RegisterRoutes(endpoints);
             });
+        }
+
+        /// <summary>
+        /// Configure MVC endpoint
+        /// </summary>
+        /// <param name="application">Builder for configuring an application's request pipeline</param>
+        public static void UseGrandDetection(this IApplicationBuilder application)
+        {
+            application.UseDetection();
         }
 
         /// <summary>

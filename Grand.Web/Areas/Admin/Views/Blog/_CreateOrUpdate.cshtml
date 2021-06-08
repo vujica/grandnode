@@ -2,7 +2,7 @@
 
 <div asp-validation-summary="All"></div>
 <input asp-for="Id" type="hidden" />
-<input id="active-menu-item" type="hidden" value="/Admin/Blog/List" />
+<input id="active-menu-item" type="hidden" value="/@Constants.AreaAdmin/Blog/List" />
 
 <admin-tabstrip name="blog-post-edit">
     <items>
@@ -57,8 +57,9 @@
 </admin-tabstrip>
 
 @{
-    //resources for product tags input
-    Html.AppendCssFileParts("~/content/tagEditor/jquery.tag-editor.css", excludeFromBundle: true);
-    Html.AppendScriptParts("~/scripts/tagEditor/jquery.tag-editor.min.js", excludeFromBundle: true);
-    Html.AppendScriptParts("~/scripts/tagEditor/jquery.caret.min.js", excludeFromBundle: true);
+//resources for product tags input
+    @inject IPageHeadBuilder pagebuilder
+    pagebuilder.AppendCssFileParts(ResourceLocation.Head, "~/administration/tagEditor/jquery.tag-editor.css", excludeFromBundle: true);
+    pagebuilder.AppendScriptParts(ResourceLocation.Head, "~/administration/tagEditor/jquery.tag-editor.min.js", excludeFromBundle: true);
+    pagebuilder.AppendScriptParts(ResourceLocation.Head, "~/administration/tagEditor/jquery.caret.min.js", excludeFromBundle: true);
 }

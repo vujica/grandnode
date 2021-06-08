@@ -1,14 +1,11 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Customers;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Customers
 {
-    [Validator(typeof(CustomerAttributeValidator))]
-    public partial class CustomerAttributeModel : BaseGrandEntityModel, ILocalizedModel<CustomerAttributeLocalizedModel>
+    public partial class CustomerAttributeModel : BaseEntityModel, ILocalizedModel<CustomerAttributeLocalizedModel>
     {
         public CustomerAttributeModel()
         {
@@ -16,7 +13,7 @@ namespace Grand.Web.Areas.Admin.Models.Customers
         }
 
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.IsRequired")]
@@ -25,7 +22,7 @@ namespace Grand.Web.Areas.Admin.Models.Customers
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.AttributeControlType")]
         public int AttributeControlTypeId { get; set; }
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.AttributeControlType")]
-        
+
         public string AttributeControlTypeName { get; set; }
 
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.DisplayOrder")]
@@ -41,7 +38,7 @@ namespace Grand.Web.Areas.Admin.Models.Customers
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.Customers.CustomerAttributes.Fields.Name")]
-        
+
         public string Name { get; set; }
 
     }

@@ -1,6 +1,5 @@
 ﻿using Grand.Core;
 using Grand.Domain.Customers;
-using Grand.Core.Infrastructure;
 using Grand.Framework.Events;
 using Grand.Framework.Kendoui;
 using Grand.Framework.Localization;
@@ -99,7 +98,6 @@ namespace Grand.Framework.Controllers
                 return writer.ToString();
             }
         }
-
         /// <summary>
         /// Render partial view to string
         /// </summary>
@@ -378,7 +376,7 @@ namespace Grand.Framework.Controllers
         protected virtual IActionResult AccessDeniedView()
         {
             var webHelper = HttpContext.RequestServices.GetRequiredService<IWebHelper>();
-            return RedirectToAction("AccessDenied", "Security", new { pageUrl = webHelper.GetRawUrl(this.Request) });
+            return RedirectToAction("AccessDenied", "Home", new { pageUrl = webHelper.GetRawUrl(this.Request) });
         }
 
         /// <summary>
@@ -387,7 +385,7 @@ namespace Grand.Framework.Controllers
         /// <returns>Access denied json data</returns>
         protected JsonResult AccessDeniedKendoGridJson()
         {
-            var localizationService = HttpContext.RequestServices.GetRequiredService<ILocalizationService > ();
+            var localizationService = HttpContext.RequestServices.GetRequiredService<ILocalizationService>();
             return ErrorForKendoGridJson(localizationService.GetResource("Admin.AccessDenied.Description"));
         }
 

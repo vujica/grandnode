@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using Grand.Domain.Catalog;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Services.Seo;
 using Grand.Web.Areas.Admin.Models.Catalog;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
 {
-    public class ProductProfile : Profile, IMapperProfile
+    public class ProductProfile : Profile, IAutoMapperProfile
     {
         public ProductProfile()
         {
@@ -34,7 +34,7 @@ namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
                 .ForMember(dest => dest.CopyProductModel, mo => mo.Ignore())
                 .ForMember(dest => dest.ProductWarehouseInventoryModels, mo => mo.Ignore())
                 .ForMember(dest => dest.IsLoggedInAsVendor, mo => mo.Ignore())
-                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true, false)))
+                .ForMember(dest => dest.SeName, mo => mo.MapFrom(src => src.GetSeName("", true)))
                 .ForMember(dest => dest.AvailableCustomerRoles, mo => mo.Ignore())
                 .ForMember(dest => dest.SelectedCustomerRoleIds, mo => mo.Ignore())
                 .ForMember(dest => dest.AvailableStores, mo => mo.Ignore())
@@ -59,6 +59,7 @@ namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
                 .ForMember(dest => dest.ProductTags, mo => mo.Ignore())
                 .ForMember(dest => dest.CreatedOnUtc, mo => mo.Ignore())
                 .ForMember(dest => dest.UpdatedOnUtc, mo => mo.Ignore())
+                .ForMember(dest => dest.Coordinates, mo => mo.Ignore())
                 .ForMember(dest => dest.ParentGroupedProductId, mo => mo.Ignore())
                 .ForMember(dest => dest.ProductType, mo => mo.Ignore())
                 .ForMember(dest => dest.ApprovedRatingSum, mo => mo.Ignore())

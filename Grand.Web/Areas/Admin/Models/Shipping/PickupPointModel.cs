@@ -1,15 +1,12 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Grand.Web.Areas.Admin.Models.Common;
-using Grand.Web.Areas.Admin.Validators.Shipping;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Shipping
 {
-    [Validator(typeof(PickupPointValidator))]
-    public partial class PickupPointModel : BaseGrandEntityModel
+    public partial class PickupPointModel : BaseEntityModel
     {
         public PickupPointModel()
         {
@@ -19,15 +16,15 @@ namespace Grand.Web.Areas.Admin.Models.Shipping
         }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.Description")]
-        
+
         public string Description { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.AdminComment")]
-        
+
         public string AdminComment { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.Address")]
@@ -48,5 +45,10 @@ namespace Grand.Web.Areas.Admin.Models.Shipping
         [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.PickupFee")]
         public decimal PickupFee { get; set; }
 
+        [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.Latitude")]
+        public double? Latitude { get; set; }
+
+        [GrandResourceDisplayName("Admin.Configuration.Shipping.PickupPoint.Fields.Longitude")]
+        public double? Longitude { get; set; }
     }
 }

@@ -1,19 +1,15 @@
-﻿using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Settings
 {
-    public partial class MediaSettingsModel : BaseGrandModel
+    public partial class MediaSettingsModel : BaseModel
     {
         #region Standard Media Settings
         public string ActiveStoreScopeConfiguration { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Settings.Media.PicturesStoredIntoDatabase")]
         public bool PicturesStoredIntoDatabase { get; set; }
-
-        [GrandResourceDisplayName("Admin.Configuration.Settings.Media.AvatarPictureSize")]
-        public int AvatarPictureSize { get; set; }
-        public bool AvatarPictureSize_OverrideForStore { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Settings.Media.ProductThumbPictureSize")]
         public int ProductThumbPictureSize { get; set; }

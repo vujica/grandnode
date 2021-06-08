@@ -65,6 +65,5 @@ namespace Grand.Services.Catalog
         /// </summary>
         /// <param name="productReview">Product review</param>
         Task DeleteProductReview(ProductReview productReview);
-
     }
 }

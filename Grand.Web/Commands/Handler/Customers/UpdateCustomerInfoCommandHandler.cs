@@ -1,5 +1,4 @@
 ﻿using Grand.Domain.Customers;
-using Grand.Domain.Forums;
 using Grand.Domain.Localization;
 using Grand.Domain.Messages;
 using Grand.Domain.Tax;
@@ -10,6 +9,7 @@ using Grand.Services.Helpers;
 using Grand.Services.Messages;
 using Grand.Services.Tax;
 using Grand.Web.Commands.Models.Customers;
+using Grand.Web.Events;
 using MediatR;
 using System;
 using System.Collections.Generic;
@@ -23,40 +23,43 @@ namespace Grand.Web.Commands.Handler.Customers
         private readonly ICustomerRegistrationService _customerRegistrationService;
         private readonly IGrandAuthenticationService _authenticationService;
         private readonly IGenericAttributeService _genericAttributeService;
-        private readonly ITaxService _taxService;
+        private readonly IVatService _checkVatService;
         private readonly IWorkflowMessageService _workflowMessageService;
         private readonly INewsLetterSubscriptionService _newsLetterSubscriptionService;
+        private readonly ICustomerService _customerService;
+        private readonly IMediator _mediator;
 
         private readonly DateTimeSettings _dateTimeSettings;
         private readonly CustomerSettings _customerSettings;
         private readonly TaxSettings _taxSettings;
         private readonly LocalizationSettings _localizationSettings;
-        private readonly ForumSettings _forumSettings;
 
         public UpdateCustomerInfoCommandHandler(
             ICustomerRegistrationService customerRegistrationService,
             IGrandAuthenticationService authenticationService,
             IGenericAttributeService genericAttributeService,
-            ITaxService taxService,
+            IVatService checkVatService,
             IWorkflowMessageService workflowMessageService,
             INewsLetterSubscriptionService newsLetterSubscriptionService,
+            ICustomerService customerService,
+            IMediator mediator,
             DateTimeSettings dateTimeSettings,
             CustomerSettings customerSettings,
             TaxSettings taxSettings,
-            LocalizationSettings localizationSettings,
-            ForumSettings forumSettings)
+            LocalizationSettings localizationSettings)
         {
             _customerRegistrationService = customerRegistrationService;
             _authenticationService = authenticationService;
             _genericAttributeService = genericAttributeService;
-            _taxService = taxService;
+            _checkVatService = checkVatService;
             _workflowMessageService = workflowMessageService;
             _newsLetterSubscriptionService = newsLetterSubscriptionService;
+            _customerService = customerService;
+            _mediator = mediator;
             _dateTimeSettings = dateTimeSettings;
             _customerSettings = customerSettings;
             _taxSettings = taxSettings;
             _localizationSettings = localizationSettings;
-            _forumSettings = forumSettings;
         }
 
         public async Task<bool> Handle(UpdateCustomerInfoCommand request, CancellationToken cancellationToken)
@@ -74,7 +77,7 @@ namespace Grand.Web.Commands.Handler.Customers
                 }
             }
             //email
-            if (!request.Customer.Email.Equals(request.Model.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (!request.Customer.Email.Equals(request.Model.Email.Trim(), StringComparison.OrdinalIgnoreCase) && _customerSettings.AllowUsersToChangeEmail)
             {
                 //change email
                 await _customerRegistrationService.SetEmail(request.Customer, request.Model.Email.Trim());
@@ -93,8 +96,9 @@ namespace Grand.Web.Commands.Handler.Customers
             {
                 await UpdateTax(request);
             }
+
             //form fields
-            await UpdateFormFields(request);
+            await UpdateGenericAttributeFields(request);
 
             //newsletter
             if (_customerSettings.NewsletterEnabled)
@@ -102,11 +106,11 @@ namespace Grand.Web.Commands.Handler.Customers
                 await UpdateNewsletter(request);
             }
 
-            if (_forumSettings.ForumsEnabled && _forumSettings.SignaturesEnabled)
-                await _genericAttributeService.SaveAttribute(request.Customer, SystemCustomerAttributeNames.Signature, request.Model.Signature);
-
             //save customer attributes
-            await _genericAttributeService.SaveAttribute(request.Customer, SystemCustomerAttributeNames.CustomCustomerAttributes, request.CustomerAttributesXml);
+            await _customerService.UpdateCustomerField(request.Customer, x => x.Attributes, request.CustomerAttributes);
+
+            //notification
+            await _mediator.Publish(new CustomerInfoEvent(request.Customer, request.Model, request.Form, request.CustomerAttributes));
 
             return true;
 
@@ -120,7 +124,7 @@ namespace Grand.Web.Commands.Handler.Customers
 
             if (prevVatNumber != request.Model.VatNumber)
             {
-                var vat = (await _taxService.GetVatNumberStatus(request.Model.VatNumber));
+                var vat = (await _checkVatService.GetVatNumberStatus(request.Model.VatNumber));
                 await _genericAttributeService.SaveAttribute(request.Customer,
                         SystemCustomerAttributeNames.VatNumberStatusId,
                         (int)vat.status);
@@ -132,7 +136,7 @@ namespace Grand.Web.Commands.Handler.Customers
             }
         }
 
-        private async Task UpdateFormFields(UpdateCustomerInfoCommand request)
+        private async Task UpdateGenericAttributeFields(UpdateCustomerInfoCommand request)
         {
             //properties
             if (_dateTimeSettings.AllowCustomersToSetTimeZone)

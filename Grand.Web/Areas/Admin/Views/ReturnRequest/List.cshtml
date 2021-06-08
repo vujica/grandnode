@@ -4,7 +4,7 @@
     //page title
     ViewBag.Title = T("Admin.ReturnRequests").Text;
 }
-<form asp-area="Admin" asp-controller="ReturnRequest" asp-action="List" method="post">
+<form asp-area="@Constants.AreaAdmin" asp-controller="ReturnRequest" asp-action="List" method="post">
     
     <div class="row">
         <div class="col-md-12">
@@ -45,10 +45,10 @@
                             </div>
                             <div class="form-group">
                                 <admin-label asp-for="GoDirectlyToId" class="control-label col-md-3 col-sm-3" />
-                                <div class="col-xs-8 col-md-4 col-sm-4">
+                                <div class="col-8 col-md-4 col-sm-4">
                                     <div class="input-group" style="text-align:left">
                                         <admin-input asp-for="GoDirectlyToId" />
-                                        <span class="input-group-btn">
+                                        <span class="input-group-append">
                                             <input type="submit" id="go-to-returnrequest" name="go-to-returnrequest" class="btn default" value="@T("Admin.Common.Go")" />
                                         </span>
                                     </div>
@@ -57,7 +57,7 @@
                         </div>
                         <div class="form-actions">
                             <div class="row">
-                                <div class="col-md-offset-3 col-sm-offset-3 col-md-9 col-sm-9">
+                                <div class="offset-md-3 offset-sm-3 col-md-9 col-sm-9">
                                     <button class="btn btn-success filter-submit" id="search-returnreqest">
                                         <i class="fa fa-search"></i> @T("Admin.Common.Search")
                                     </button>
@@ -135,12 +135,12 @@
                     field: "CustomerId",
                     title: "@T("Admin.ReturnRequests.Fields.Customer")",
                     width: 200,
-                    template: '<a class="k-link" href="@Url.Content("~/Admin/Customer/Edit/")#=CustomerId#">#:kendo.htmlEncode(CustomerInfo)#</a>'
+                    template: '<a class="k-link" href="@Url.Action("Edit", "Customer")/#=CustomerId#">#:kendo.htmlEncode(CustomerInfo)#</a>'
                 }, {
                     field: "OrderId",
                     title: "@T("Admin.ReturnRequests.Fields.Order")",
                     width: 80,
-                    template: '<a class="k-link" href="@Url.Content("~/Admin/Order/Edit/")#=OrderId#">#:OrderNumber#</a>'
+                    template: '<a class="k-link" href="@Url.Action("Edit", "Order")/#=OrderId#">#:OrderNumber#</a>'
                 }, {
                     field: "ReturnRequestStatusStr",
                     title: "@T("Admin.ReturnRequests.Fields.Status")",

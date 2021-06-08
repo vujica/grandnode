@@ -20,6 +20,7 @@ namespace Grand.Web.Features.Handlers.Checkout
     public class GetShippingAddressHandler : IRequestHandler<GetShippingAddress, CheckoutShippingAddressModel>
     {
         private readonly IShippingService _shippingService;
+        private readonly IPickupPointService _pickupPointService;
         private readonly ITaxService _taxService;
         private readonly ICurrencyService _currencyService;
         private readonly IPriceFormatter _priceFormatter;
@@ -29,7 +30,9 @@ namespace Grand.Web.Features.Handlers.Checkout
         private readonly IMediator _mediator;
         private readonly ShippingSettings _shippingSettings;
 
-        public GetShippingAddressHandler(IShippingService shippingService,
+        public GetShippingAddressHandler(
+            IShippingService shippingService,
+            IPickupPointService pickupPointService,
             ITaxService taxService,
             ICurrencyService currencyService,
             IPriceFormatter priceFormatter,
@@ -40,6 +43,7 @@ namespace Grand.Web.Features.Handlers.Checkout
             ShippingSettings shippingSettings)
         {
             _shippingService = shippingService;
+            _pickupPointService = pickupPointService;
             _taxService = taxService;
             _currencyService = currencyService;
             _priceFormatter = priceFormatter;
@@ -74,14 +78,14 @@ namespace Grand.Web.Features.Handlers.Checkout
                 LoadCountries = () => countries,
                 PrePopulateWithCustomerFields = request.PrePopulateNewAddressWithCustomerFields,
                 Customer = request.Customer,
-                OverrideAttributesXml = request.OverrideAttributesXml,
+                OverrideAttributes = request.OverrideAttributes,
             });
             return model;
         }
 
         private async Task PreparePickupPoints(CheckoutShippingAddressModel model, GetShippingAddress request)
         {
-            var pickupPoints = await _shippingService.LoadActivePickupPoints(request.Store.Id);
+            var pickupPoints = await _pickupPointService.LoadActivePickupPoints(request.Store.Id);
 
             if (pickupPoints.Any())
             {

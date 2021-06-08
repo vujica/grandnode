@@ -27,6 +27,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         private readonly IOrderService _orderService;
         private readonly IOrderProcessingService _orderProcessingService;
+        private readonly IOrderRecurringPayment _orderRecurringPayment;
         private readonly ILocalizationService _localizationService;
         private readonly IWorkContext _workContext;
         private readonly IDateTimeHelper _dateTimeHelper;
@@ -37,12 +38,17 @@ namespace Grand.Web.Areas.Admin.Controllers
         #region Constructors
 
         public RecurringPaymentController(IOrderService orderService,
-            IOrderProcessingService orderProcessingService, ILocalizationService localizationService,
-            IWorkContext workContext, IDateTimeHelper dateTimeHelper, IPaymentService paymentService,
+            IOrderProcessingService orderProcessingService,
+            IOrderRecurringPayment orderRecurringPayment,
+            ILocalizationService localizationService,
+            IWorkContext workContext, 
+            IDateTimeHelper dateTimeHelper, 
+            IPaymentService paymentService,
             ICustomerService customerService)
         {
             _orderService = orderService;
             _orderProcessingService = orderProcessingService;
+            _orderRecurringPayment = orderRecurringPayment;
             _localizationService = localizationService;
             _workContext = workContext;
             _dateTimeHelper = dateTimeHelper;
@@ -78,7 +84,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             model.CustomerId = customer.Id;
             model.CustomerEmail = customer.IsRegistered() ? customer.Email : _localizationService.GetResource("Admin.Customers.Guest");
             model.PaymentType = _paymentService.GetRecurringPaymentType(recurringPayment.InitialOrder.PaymentMethodSystemName).GetLocalizedEnum(_localizationService, _workContext);
-            model.CanCancelRecurringPayment = await _orderProcessingService.CanCancelRecurringPayment(_workContext.CurrentCustomer, recurringPayment);
+            model.CanCancelRecurringPayment = await _orderRecurringPayment.CanCancelRecurringPayment(_workContext.CurrentCustomer, recurringPayment);
         }
 
         [NonAction]
@@ -112,6 +118,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         public IActionResult List() => View();
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> List(DataSourceRequest command)
         {
@@ -132,6 +139,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //edit
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var payment = await _orderService.GetRecurringPaymentById(id);
@@ -144,6 +152,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         public async Task<IActionResult> Edit(RecurringPaymentModel model, bool continueEditing)
@@ -172,6 +181,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         //delete
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
@@ -190,6 +200,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region History
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> HistoryList(string recurringPaymentId, DataSourceRequest command)
         {
@@ -212,6 +223,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("processnextpayment")]
         public async Task<IActionResult> ProcessNextPayment(string id)
@@ -223,7 +235,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             
             try
             {
-                await _orderProcessingService.ProcessNextRecurringPayment(payment);
+                await _orderRecurringPayment.ProcessNextRecurringPayment(payment);
                 var model = new RecurringPaymentModel();
                 await PrepareRecurringPaymentModel(model, payment);
 
@@ -248,6 +260,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("cancelpayment")]
         public async Task<IActionResult> CancelRecurringPayment(string id)
@@ -259,7 +272,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             try
             {
-                var errors = await _orderProcessingService.CancelRecurringPayment(payment);
+                var errors = await _orderRecurringPayment.CancelRecurringPayment(payment);
                 var model = new RecurringPaymentModel();
                 await PrepareRecurringPaymentModel(model, payment);
                 if (errors.Count > 0)

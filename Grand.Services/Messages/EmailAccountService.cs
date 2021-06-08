@@ -10,37 +10,14 @@ using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using MediatR;
 using Grand.Core.Caching;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Messages
 {
     public partial class EmailAccountService : IEmailAccountService
     {
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : email account ID
-        /// </remarks>
-        private const string EMAILACCOUNT_BY_ID_KEY = "Grand.emailaccount.id-{0}";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// </remarks>
-        private const string EMAILACCOUNT_ALL_KEY = "Grand.emailaccount.all";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// </summary>
-        private const string EMAILACCOUNT_PATTERN_KEY = "Grand.emailaccount.";
-
-        #endregion
-
         private readonly IRepository<EmailAccount> _emailAccountRepository;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IMediator _mediator;
 
         /// <summary>
@@ -51,11 +28,11 @@ namespace Grand.Services.Messages
         /// <param name="mediator">Mediator</param>
         public EmailAccountService(
             IRepository<EmailAccount> emailAccountRepository,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             IMediator mediator)
         {
             _emailAccountRepository = emailAccountRepository;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _mediator = mediator;
         }
 
@@ -89,7 +66,7 @@ namespace Grand.Services.Messages
             await _emailAccountRepository.InsertAsync(emailAccount);
 
             //clear cache
-            await _cacheManager.RemoveByPrefix(EMAILACCOUNT_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.EMAILACCOUNT_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityInserted(emailAccount);
@@ -125,7 +102,7 @@ namespace Grand.Services.Messages
             await _emailAccountRepository.UpdateAsync(emailAccount);
 
             //clear cache
-            await _cacheManager.RemoveByPrefix(EMAILACCOUNT_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.EMAILACCOUNT_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityUpdated(emailAccount);
@@ -146,7 +123,7 @@ namespace Grand.Services.Messages
             await _emailAccountRepository.DeleteAsync(emailAccount);
 
             //clear cache
-            await _cacheManager.RemoveByPrefix(EMAILACCOUNT_PATTERN_KEY);
+            await _cacheBase.RemoveByPrefix(CacheKey.EMAILACCOUNT_PATTERN_KEY);
 
             //event notification
             await _mediator.EntityDeleted(emailAccount);
@@ -159,8 +136,8 @@ namespace Grand.Services.Messages
         /// <returns>Email account</returns>
         public virtual async Task<EmailAccount> GetEmailAccountById(string emailAccountId)
         {
-            string key = string.Format(EMAILACCOUNT_BY_ID_KEY, emailAccountId);
-            return await _cacheManager.GetAsync(key, () =>
+            string key = string.Format(CacheKey.EMAILACCOUNT_BY_ID_KEY, emailAccountId);
+            return await _cacheBase.GetAsync(key, () =>
             {
                 return _emailAccountRepository.GetByIdAsync(emailAccountId);
             });
@@ -173,7 +150,7 @@ namespace Grand.Services.Messages
         /// <returns>Email accounts list</returns>
         public virtual async Task<IList<EmailAccount>> GetAllEmailAccounts()
         {
-            return await _cacheManager.GetAsync(EMAILACCOUNT_ALL_KEY, () =>
+            return await _cacheBase.GetAsync(CacheKey.EMAILACCOUNT_ALL_KEY, () =>
             {
                 var query = from ea in _emailAccountRepository.Table
                             orderby ea.Id

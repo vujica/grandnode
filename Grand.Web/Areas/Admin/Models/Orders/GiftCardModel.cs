@@ -1,14 +1,17 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Orders;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
+using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Orders
 {
-    [Validator(typeof(GiftCardValidator))]
-    public partial class GiftCardModel: BaseGrandEntityModel
+    public partial class GiftCardModel : BaseEntityModel
     {
+        public GiftCardModel()
+        {
+            AvailableCurrencies = new List<SelectListItem>();
+        }
         [GrandResourceDisplayName("Admin.GiftCards.Fields.GiftCardType")]
         public int GiftCardTypeId { get; set; }
 
@@ -18,6 +21,11 @@ namespace Grand.Web.Areas.Admin.Models.Orders
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.Amount")]
         public decimal Amount { get; set; }
+
+        [GrandResourceDisplayName("Admin.GiftCards.Fields.CurrencyCode")]
+        public string CurrencyCode { get; set; }
+        public IList<SelectListItem> AvailableCurrencies { get; set; }
+
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.Amount")]
         public string AmountStr { get; set; }
@@ -29,27 +37,27 @@ namespace Grand.Web.Areas.Admin.Models.Orders
         public bool IsGiftCardActivated { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.GiftCardCouponCode")]
-        
+
         public string GiftCardCouponCode { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.RecipientName")]
-        
+
         public string RecipientName { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.RecipientEmail")]
-        
+
         public string RecipientEmail { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.SenderName")]
-        
+
         public string SenderName { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.SenderEmail")]
-        
+
         public string SenderEmail { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.Message")]
-        
+
         public string Message { get; set; }
 
         [GrandResourceDisplayName("Admin.GiftCards.Fields.IsRecipientNotified")]
@@ -58,11 +66,9 @@ namespace Grand.Web.Areas.Admin.Models.Orders
         [GrandResourceDisplayName("Admin.GiftCards.Fields.CreatedOn")]
         public DateTime CreatedOn { get; set; }
 
-        public string PrimaryStoreCurrencyCode { get; set; }
-
         #region Nested classes
 
-        public partial class GiftCardUsageHistoryModel : BaseGrandEntityModel
+        public partial class GiftCardUsageHistoryModel : BaseEntityModel
         {
             [GrandResourceDisplayName("Admin.GiftCards.History.UsedValue")]
             public string UsedValue { get; set; }

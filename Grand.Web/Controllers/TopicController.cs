@@ -4,6 +4,7 @@ using Grand.Services.Security;
 using Grand.Web.Features.Models.Topics;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Threading.Tasks;
 
 namespace Grand.Web.Controllers
@@ -86,7 +87,7 @@ namespace Grand.Web.Controllers
             var body = string.Empty;
             var error = string.Empty;
 
-            var topic = await _mediator.Send(new GetTopicBlock() { TopicId = id });
+            var topic = await _mediator.Send(new GetTopicBlock() { TopicId = id, Password = password });
 
             if (topic != null &&
                 //password protected?

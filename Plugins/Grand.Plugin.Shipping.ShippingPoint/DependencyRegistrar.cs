@@ -1,22 +1,21 @@
-using Autofac;
 using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
-using Grand.Core.Infrastructure.DependencyManagement;
+using Grand.Core.DependencyInjection;
+using Grand.Core.TypeFinders;
 using Grand.Plugin.Shipping.ShippingPoint.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Grand.Plugin.Shipping.ShippingPoint
 {
-    public class DependencyRegistrar : IDependencyRegistrar
+    public class DependencyInjection : IDependencyInjection
     {
-        public virtual void Register(ContainerBuilder builder, ITypeFinder typeFinder, GrandConfig config)
+        public virtual void Register(IServiceCollection serviceCollection, ITypeFinder typeFinder, GrandConfig config)
         {
-            builder.RegisterType<ShippingPointComputationMethod>().InstancePerLifetimeScope();
-            builder.RegisterType<ShippingPointService>().As<IShippingPointService>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<ShippingPointComputationMethod>();
+            serviceCollection.AddScoped<IShippingPointService, ShippingPointService>();
         }
 
-        public int Order
-        {
-            get { return 1; }
+        public int Order {
+            get { return 10; }
         }
     }
 }

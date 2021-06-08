@@ -1,21 +1,18 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Catalog;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
 
 namespace Grand.Web.Areas.Admin.Models.Catalog
 {
-    [Validator(typeof(ProductTagValidator))]
-    public partial class ProductTagModel : BaseGrandEntityModel, ILocalizedModel<ProductTagLocalizedModel>
+    public partial class ProductTagModel : BaseEntityModel, ILocalizedModel<ProductTagLocalizedModel>
     {
         public ProductTagModel()
         {
             Locales = new List<ProductTagLocalizedModel>();
         }
         [GrandResourceDisplayName("Admin.Catalog.ProductTags.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.ProductTags.Fields.ProductCount")]
@@ -29,7 +26,7 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.ProductTags.Fields.Name")]
-        
+
         public string Name { get; set; }
     }
 }

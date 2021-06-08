@@ -7,6 +7,7 @@ using System.Linq;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using System.Threading.Tasks;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Catalog
 {
@@ -15,30 +16,10 @@ namespace Grand.Services.Catalog
     /// </summary>
     public partial class RecentlyViewedProductsService : IRecentlyViewedProductsService
     {
-
-        #region Constants
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : customer id
-        /// {1} : number
-        /// </remarks>
-        private const string RECENTLY_VIEW_PRODUCTS_KEY = "Grand.recentlyviewedproducts-{0}-{1}";
-
-        /// <summary>
-        /// Key pattern to clear cache
-        /// {0} customer id
-        /// </summary>
-        private const string RECENTLY_VIEW_PRODUCTS_PATTERN_KEY = "Grand.recentlyviewedproducts-{0}";
-
-        #endregion
-
         #region Fields
 
         private readonly IProductService _productService;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly CatalogSettings _catalogSettings;
         private readonly IRepository<RecentlyViewedProduct> _recentlyViewedProducts;
 
@@ -55,12 +36,12 @@ namespace Grand.Services.Catalog
         /// <param name="recentlyViewedProducts">Collection recentlyViewedProducts</param>
         public RecentlyViewedProductsService(
             IProductService productService,
-            ICacheManager cacheManager,
+            ICacheBase cacheManager,
             CatalogSettings catalogSettings, 
             IRepository<RecentlyViewedProduct> recentlyViewedProducts)
         {
             _productService = productService;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _catalogSettings = catalogSettings;
             _recentlyViewedProducts = recentlyViewedProducts;
         }
@@ -86,8 +67,8 @@ namespace Grand.Services.Catalog
         /// <returns>"recently viewed products" list</returns>
         protected async Task<IList<string>> GetRecentlyViewedProductsIds(string customerId, int number)
         {
-            string key = string.Format(RECENTLY_VIEW_PRODUCTS_KEY, customerId, number);
-            return await _cacheManager.GetAsync(key, async () =>
+            string key = string.Format(CacheKey.RECENTLY_VIEW_PRODUCTS_KEY, customerId, number);
+            return await _cacheBase.GetAsync(key, async () =>
             {
                 var query = from p in _recentlyViewedProducts.Table
                              where p.CustomerId == customerId
@@ -147,7 +128,7 @@ namespace Grand.Services.Catalog
             }
 
             //Clear cache
-            await _cacheManager.RemoveByPrefixAsync(string.Format(RECENTLY_VIEW_PRODUCTS_PATTERN_KEY, customerId));
+            await _cacheBase.RemoveByPrefix(string.Format(CacheKey.RECENTLY_VIEW_PRODUCTS_PATTERN_KEY, customerId));
 
         }
 

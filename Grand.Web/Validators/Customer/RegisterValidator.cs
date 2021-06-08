@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using Grand.Core;
 using Grand.Domain.Customers;
-using Grand.Framework.Validators;
+using Grand.Core.Validators;
 using Grand.Services.Directory;
 using Grand.Services.Localization;
 using Grand.Web.Models.Customer;
@@ -34,6 +34,9 @@ namespace Grand.Web.Validators.Customer
 
             RuleFor(x => x.Password).NotEmpty().WithMessage(localizationService.GetResource("Account.Fields.Password.Required"));
             RuleFor(x => x.Password).Length(customerSettings.PasswordMinLength, 999).WithMessage(string.Format(localizationService.GetResource("Account.Fields.Password.LengthValidation"), customerSettings.PasswordMinLength));
+            if (!string.IsNullOrEmpty(customerSettings.PasswordRegularExpression))
+                RuleFor(x => x.Password).Matches(customerSettings.PasswordRegularExpression).WithMessage(string.Format(localizationService.GetResource("Account.Fields.Password.Validation")));
+
             RuleFor(x => x.ConfirmPassword).NotEmpty().WithMessage(localizationService.GetResource("Account.Fields.ConfirmPassword.Required"));
             RuleFor(x => x.ConfirmPassword).Equal(x => x.Password).WithMessage(localizationService.GetResource("Account.Fields.Password.EnteredPasswordsDoNotMatch"));
 

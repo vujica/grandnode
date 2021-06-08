@@ -1,10 +1,10 @@
 ﻿using Grand.Core;
 using Grand.Core.Caching;
 using Grand.Core.Configuration;
-using Grand.Core.Data;
 using Grand.Core.Plugins;
 using Grand.Core.Roslyn;
 using Grand.Domain.Catalog;
+using Grand.Domain.Data;
 using Grand.Domain.Directory;
 using Grand.Domain.Media;
 using Grand.Domain.Seo;
@@ -24,6 +24,7 @@ using Grand.Services.Security;
 using Grand.Services.Seo;
 using Grand.Services.Shipping;
 using Grand.Services.Stores;
+using Grand.Web.Areas.Admin.Extensions;
 using Grand.Web.Areas.Admin.Models.Common;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -42,6 +43,8 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Grand.Services.Logging;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Grand.Web.Areas.Admin.Controllers
 {
@@ -147,7 +150,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult SystemInfo()
         {
             var model = new SystemInfoModel();
-            model.GrandVersion = GrandVersion.CurrentVersion;
+            model.GrandVersion = GrandVersion.FullVersion;
             try
             {
                 model.OperatingSystem = RuntimeInformation.OSDescription;
@@ -172,7 +175,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                     Value = header.Value
                 });
             }
-            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().ToList().OrderBy(x=>x.FullName))
             {
                 model.LoadedAssemblies.Add(new SystemInfoModel.LoadedAssembly {
                     FullName = assembly.FullName,
@@ -419,12 +422,6 @@ namespace Grand.Web.Areas.Admin.Controllers
         [FormValueRequired("delete-exported-files")]
         public IActionResult MaintenanceDeleteFiles(MaintenanceModel model)
         {
-            DateTime? startDateValue = (model.DeleteExportedFiles.StartDate == null) ? null
-                            : (DateTime?)_dateTimeHelper.ConvertToUtcTime(model.DeleteExportedFiles.StartDate.Value, _dateTimeHelper.CurrentTimeZone);
-
-            DateTime? endDateValue = (model.DeleteExportedFiles.EndDate == null) ? null
-                            : (DateTime?)_dateTimeHelper.ConvertToUtcTime(model.DeleteExportedFiles.EndDate.Value, _dateTimeHelper.CurrentTimeZone).AddDays(1);
-
             //TO DO
             model.DeleteExportedFiles.NumberOfDeletedFiles = 0;
             return View(model);
@@ -442,7 +439,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         [HttpPost, ActionName("Maintenance")]
         [FormValueRequired("convert-picture-webp")]
-        public async Task<IActionResult> MaintenanceConvertPicture([FromServices] IPictureService pictureService, [FromServices] MediaSettings mediaSettings)
+        public async Task<IActionResult> MaintenanceConvertPicture([FromServices] IPictureService pictureService, [FromServices] MediaSettings mediaSettings, [FromServices] ILogger logger)
         {
             var model = new MaintenanceModel();
             model.ConvertedPictureModel.NumberOfConvertItems = 0;
@@ -453,26 +450,33 @@ namespace Grand.Web.Areas.Admin.Controllers
                 {
                     if (!picture.MimeType.Contains("webp"))
                     {
-                        using var image = SKBitmap.Decode(picture.PictureBinary);
-                        SKData d = SKImage.FromBitmap(image).Encode(SKEncodedImageFormat.Webp, mediaSettings.DefaultImageQuality);
-                        await pictureService.UpdatePicture(picture.Id, d.ToArray(), "image/webp", picture.SeoFilename, picture.AltAttribute, picture.TitleAttribute, true, false);
-                        model.ConvertedPictureModel.NumberOfConvertItems += 1;
+                        try
+                        {
+                            using var image = SKBitmap.Decode(picture.PictureBinary);
+                            SKData d = SKImage.FromBitmap(image).Encode(SKEncodedImageFormat.Webp, mediaSettings.DefaultImageQuality);
+                            await pictureService.UpdatePicture(picture.Id, d.ToArray(), "image/webp", picture.SeoFilename, picture.AltAttribute, picture.TitleAttribute, true, false);
+                            model.ConvertedPictureModel.NumberOfConvertItems += 1;
+                        }
+                        catch(Exception ex)
+                        {
+                            logger.Error($"Error on converting picture with id {picture.Id} to webp format", ex);
+                        }
                     }
                 }
             }
             return View(model);
         }
 
-        public async Task<IActionResult> ClearCache(string returnUrl, [FromServices] ICacheManager cacheManager)
+        public async Task<IActionResult> ClearCache(string returnUrl, [FromServices] ICacheBase cacheManager)
         {
             await cacheManager.Clear();
 
             //home page
             if (string.IsNullOrEmpty(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             //prevent open redirection attack
             if (!Url.IsLocalUrl(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             return Redirect(returnUrl);
         }
 
@@ -480,14 +484,14 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult RestartApplication(string returnUrl = "")
         {
             //restart application
-            _webHelper.RestartAppDomain();
+            _webHelper.StopApplication();
 
             //home page
             if (String.IsNullOrEmpty(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             //prevent open redirection attack
             if (!Url.IsLocalUrl(returnUrl))
-                return RedirectToAction("Index", "Home", new { area = "Admin" });
+                return RedirectToAction("Index", "Home", new { area = Constants.AreaAdmin });
             return Redirect(returnUrl);
         }
 
@@ -581,12 +585,32 @@ namespace Grand.Web.Areas.Admin.Controllers
         public IActionResult SeNames()
         {
             var model = new UrlRecordListModel();
+            //"Active" property
+            //0 - all (according to "IsActive" parameter)
+            //1 - active only
+            //2 - inactive only
+            model.AvailableActiveOptions.Add(new SelectListItem { Text = _localizationService.GetResource("Admin.System.SeNames.Search.All"), Value = "0" });
+            model.AvailableActiveOptions.Add(new SelectListItem { Text = _localizationService.GetResource("Admin.System.SeNames.Search.ActiveOnly"), Value = "1" });
+            model.AvailableActiveOptions.Add(new SelectListItem { Text = _localizationService.GetResource("Admin.System.SeNames.Search.InActiveOnly"), Value = "2" });
+
             return View(model);
         }
         [HttpPost]
         public async Task<IActionResult> SeNames(DataSourceRequest command, UrlRecordListModel model)
         {
-            var urlRecords = await _urlRecordService.GetAllUrlRecords(model.SeName, command.Page - 1, command.PageSize);
+            bool? active = null;
+            switch (model.SearchActiveId)
+            {
+                case 1:
+                    active = true;
+                    break;
+                case 2:
+                    active = false;
+                    break;
+                default:
+                    break;
+            }
+            var urlRecords = await _urlRecordService.GetAllUrlRecords(model.SeName, active, command.Page - 1, command.PageSize);
             var items = new List<UrlRecordModel>();
             foreach (var x in urlRecords)
             {
@@ -680,12 +704,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #endregion
 
-        #region Custom css/js
+        #region Custom css/js/robots.txt
 
         public async Task<IActionResult> CustomCss()
         {
             var model = new Editor();
-            var file = Path.Combine(CommonHelper.BaseDirectory, "wwwroot", "content", "custom", "style.css");
+            var file = Path.Combine(CommonHelper.WebRootPath, "content", "custom", "style.css");
             if (System.IO.File.Exists(file))
             {
                 model.Content = await System.IO.File.ReadAllTextAsync(file);
@@ -700,7 +724,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public async Task<IActionResult> CustomJs()
         {
             var model = new Editor();
-            var file = Path.Combine(CommonHelper.BaseDirectory, "wwwroot", "content", "custom", "script.js");
+            var file = Path.Combine(CommonHelper.WebRootPath, "content", "custom", "script.js");
             if (System.IO.File.Exists(file))
             {
                 model.Content = await System.IO.File.ReadAllTextAsync(file);
@@ -714,7 +738,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         {
             try
             {
-                var file = Path.Combine(CommonHelper.BaseDirectory, "wwwroot", "content", "custom", css ? "style.css" : "script.js");
+                var file = Path.Combine(CommonHelper.WebRootPath, "content", "custom", css ? "style.css" : "script.js");
 
                 if (System.IO.File.Exists(file))
                     System.IO.File.WriteAllText(file, content, Encoding.UTF8);
@@ -726,6 +750,35 @@ namespace Grand.Web.Areas.Admin.Controllers
                     }
                     System.IO.File.WriteAllText(file, content, Encoding.UTF8);
                 }
+                return Json(_localizationService.GetResource("Admin.Common.Content.Saved"));
+            }
+            catch (Exception ex)
+            {
+                return Json(ex.Message);
+            }
+        }
+        public async Task<IActionResult> AdditionsRobotsTxt()
+        {
+            var model = new Editor();
+            var file = Path.Combine(CommonHelper.WebRootPath, "robots.additions.txt");
+            if (System.IO.File.Exists(file))
+            {
+                model.Content = await System.IO.File.ReadAllTextAsync(file);
+            }
+
+            return View(model);
+        }
+
+
+        [HttpPost]
+        public IActionResult SaveRobotsTxt(string content = "")
+        {
+            try
+            {
+                var file = Path.Combine(CommonHelper.WebRootPath, "robots.additions.txt");
+
+                System.IO.File.WriteAllText(file, content, Encoding.UTF8);
+
                 return Json(_localizationService.GetResource("Admin.Common.Content.Saved"));
             }
             catch (Exception ex)

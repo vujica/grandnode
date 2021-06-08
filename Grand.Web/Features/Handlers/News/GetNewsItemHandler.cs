@@ -4,7 +4,6 @@ using Grand.Domain.Customers;
 using Grand.Domain.Media;
 using Grand.Domain.News;
 using Grand.Framework.Security.Captcha;
-using Grand.Services.Common;
 using Grand.Services.Customers;
 using Grand.Services.Helpers;
 using Grand.Services.Localization;
@@ -24,12 +23,11 @@ namespace Grand.Web.Features.Handlers.News
 {
     public class GetNewsItemHandler : IRequestHandler<GetNewsItem, NewsItemModel>
     {
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IWorkContext _workContext;
         private readonly IStoreContext _storeContext;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IPictureService _pictureService;
-        private readonly IWebHelper _webHelper;
         private readonly ILocalizationService _localizationService;
         private readonly ICustomerService _customerService;
 
@@ -37,16 +35,15 @@ namespace Grand.Web.Features.Handlers.News
         private readonly CaptchaSettings _captchaSettings;
         private readonly CustomerSettings _customerSettings;
 
-        public GetNewsItemHandler(ICacheManager cacheManager, IWorkContext workContext, IStoreContext storeContext, IDateTimeHelper dateTimeHelper,
-            IPictureService pictureService, IWebHelper webHelper, ILocalizationService localizationService, ICustomerService customerService,
+        public GetNewsItemHandler(ICacheBase cacheManager, IWorkContext workContext, IStoreContext storeContext, IDateTimeHelper dateTimeHelper,
+            IPictureService pictureService, ILocalizationService localizationService, ICustomerService customerService,
             MediaSettings mediaSettings, CaptchaSettings captchaSettings, CustomerSettings customerSettings)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _workContext = workContext;
             _storeContext = storeContext;
             _dateTimeHelper = dateTimeHelper;
             _pictureService = pictureService;
-            _webHelper = webHelper;
             _localizationService = localizationService;
             _customerService = customerService;
 
@@ -93,16 +90,7 @@ namespace Grand.Web.Features.Handlers.News
                     CommentTitle = nc.CommentTitle,
                     CommentText = nc.CommentText,
                     CreatedOn = _dateTimeHelper.ConvertToUserTime(nc.CreatedOnUtc, DateTimeKind.Utc),
-                    AllowViewingProfiles = _customerSettings.AllowViewingProfiles && customer != null && !customer.IsGuest(),
                 };
-                if (_customerSettings.AllowCustomersToUploadAvatars)
-                {
-                    commentModel.CustomerAvatarUrl = await _pictureService.GetPictureUrl(
-                        customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.AvatarPictureId),
-                        _mediaSettings.AvatarPictureSize,
-                        _customerSettings.DefaultAvatarEnabled,
-                        defaultPictureType: PictureType.Avatar);
-                }
                 model.Comments.Add(commentModel);
             }
         }
@@ -113,7 +101,7 @@ namespace Grand.Web.Features.Handlers.News
             {
                 var categoryPictureCacheKey = string.Format(ModelCacheEventConst.NEWS_PICTURE_MODEL_KEY, newsItem.Id, _mediaSettings.NewsThumbPictureSize,
                     true, _workContext.WorkingLanguage.Id, _storeContext.CurrentStore.Id);
-                model.PictureModel = await _cacheManager.GetAsync(categoryPictureCacheKey, async () =>
+                model.PictureModel = await _cacheBase.GetAsync(categoryPictureCacheKey, async () =>
                 {
                     var pictureModel = new PictureModel {
                         Id = newsItem.PictureId,

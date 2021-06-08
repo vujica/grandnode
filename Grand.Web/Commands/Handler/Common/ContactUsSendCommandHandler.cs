@@ -2,6 +2,7 @@
 using Grand.Domain.Catalog;
 using Grand.Domain.Common;
 using Grand.Domain.Stores;
+using Grand.Services.Common;
 using Grand.Services.Localization;
 using Grand.Services.Logging;
 using Grand.Services.Media;
@@ -23,7 +24,6 @@ namespace Grand.Web.Commands.Handler.Common
         private readonly IWorkContext _workContext;
         private readonly IContactAttributeService _contactAttributeService;
         private readonly IContactAttributeParser _contactAttributeParser;
-        private readonly IContactAttributeFormatter _contactAttributeFormatter;
         private readonly IDownloadService _downloadService;
         private readonly ILocalizationService _localizationService;
         private readonly IWorkflowMessageService _workflowMessageService;
@@ -31,12 +31,11 @@ namespace Grand.Web.Commands.Handler.Common
 
         private readonly CommonSettings _commonSettings;
 
-        public ContactUsSendCommandHandler(IWorkContext workContext, 
+        public ContactUsSendCommandHandler(IWorkContext workContext,
             IContactAttributeService contactAttributeService,
-            IContactAttributeParser contactAttributeParser, 
-            IContactAttributeFormatter contactAttributeFormatter,
-            IDownloadService downloadService, 
-            ILocalizationService localizationService, 
+            IContactAttributeParser contactAttributeParser,
+            IDownloadService downloadService,
+            ILocalizationService localizationService,
             IWorkflowMessageService workflowMessageService,
             ICustomerActivityService customerActivityService,
             CommonSettings commonSettings)
@@ -44,7 +43,6 @@ namespace Grand.Web.Commands.Handler.Common
             _workContext = workContext;
             _contactAttributeService = contactAttributeService;
             _contactAttributeParser = contactAttributeParser;
-            _contactAttributeFormatter = contactAttributeFormatter;
             _downloadService = downloadService;
             _localizationService = localizationService;
             _workflowMessageService = workflowMessageService;
@@ -56,8 +54,8 @@ namespace Grand.Web.Commands.Handler.Common
         {
             var errors = new List<string>();
             //parse contact attributes
-            var attributeXml = await ParseContactAttributes(request);
-            var contactAttributeWarnings = await GetContactAttributesWarnings(attributeXml, request.Store.Id);
+            var attributes = await ParseContactAttributes(request);
+            var contactAttributeWarnings = await GetContactAttributesWarnings(attributes, request.Store.Id);
             if (contactAttributeWarnings.Any())
             {
                 foreach (var item in contactAttributeWarnings)
@@ -67,8 +65,8 @@ namespace Grand.Web.Commands.Handler.Common
             }
             if (!errors.Any())
             {
-                request.Model.ContactAttributeXml = attributeXml;
-                request.Model.ContactAttributeInfo = await _contactAttributeFormatter.FormatAttributes(attributeXml, _workContext.CurrentCustomer);
+                request.Model.ContactAttribute = attributes;
+                request.Model.ContactAttributeInfo = await _contactAttributeParser.FormatAttributes(_workContext.WorkingLanguage, attributes, _workContext.CurrentCustomer);
                 request.Model = await SendContactUs(request.Model, request.Store);
 
                 //activity log
@@ -77,16 +75,16 @@ namespace Grand.Web.Commands.Handler.Common
             }
             else
             {
-                request.Model.ContactAttributes = await PrepareContactAttributeModel(attributeXml, request.Store.Id);
+                request.Model.ContactAttributes = await PrepareContactAttributeModel(attributes, request.Store.Id);
             }
 
             return (request.Model, errors);
 
         }
 
-        private async Task<string> ParseContactAttributes(ContactUsSendCommand request)
+        private async Task<IList<CustomAttribute>> ParseContactAttributes(ContactUsSendCommand request)
         {
-            string attributesXml = "";
+            var customAttributes = new List<CustomAttribute>();
             var contactAttributes = await _contactAttributeService.GetAllContactAttributes(request.Store.Id);
             foreach (var attribute in contactAttributes)
             {
@@ -99,10 +97,10 @@ namespace Grand.Web.Commands.Handler.Common
                     case AttributeControlType.ImageSquares:
                         {
                             var ctrlAttributes = request.Form[controlId];
-                            if (!String.IsNullOrEmpty(ctrlAttributes))
+                            if (!string.IsNullOrEmpty(ctrlAttributes))
                             {
-                                attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml,
-                                        attribute, ctrlAttributes);
+                                customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes,
+                                        attribute, ctrlAttributes).ToList();
 
                             }
                         }
@@ -110,11 +108,11 @@ namespace Grand.Web.Commands.Handler.Common
                     case AttributeControlType.Checkboxes:
                         {
                             var cblAttributes = request.Form[controlId].ToString();
-                            if (!String.IsNullOrEmpty(cblAttributes))
+                            if (!string.IsNullOrEmpty(cblAttributes))
                             {
                                 foreach (var item in cblAttributes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                                 {
-                                    attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml, attribute, item);
+                                    customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes, attribute, item).ToList();
                                 }
                             }
                         }
@@ -128,8 +126,8 @@ namespace Grand.Web.Commands.Handler.Common
                                 .Select(v => v.Id)
                                 .ToList())
                             {
-                                attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml,
-                                            attribute, selectedAttributeId.ToString());
+                                customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes,
+                                            attribute, selectedAttributeId.ToString()).ToList();
                             }
                         }
                         break;
@@ -137,11 +135,11 @@ namespace Grand.Web.Commands.Handler.Common
                     case AttributeControlType.MultilineTextbox:
                         {
                             var ctrlAttributes = request.Form[controlId].ToString();
-                            if (!String.IsNullOrEmpty(ctrlAttributes))
+                            if (!string.IsNullOrEmpty(ctrlAttributes))
                             {
-                                string enteredText = ctrlAttributes.Trim();
-                                attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml,
-                                    attribute, enteredText);
+                                var enteredText = ctrlAttributes.Trim();
+                                customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes,
+                                    attribute, enteredText).ToList();
                             }
                         }
                         break;
@@ -158,20 +156,19 @@ namespace Grand.Web.Commands.Handler.Common
                             catch { }
                             if (selectedDate.HasValue)
                             {
-                                attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml,
-                                    attribute, selectedDate.Value.ToString("D"));
+                                customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes,
+                                    attribute, selectedDate.Value.ToString("D")).ToList();
                             }
                         }
                         break;
                     case AttributeControlType.FileUpload:
                         {
-                            Guid downloadGuid;
-                            Guid.TryParse(request.Form[controlId], out downloadGuid);
+                            Guid.TryParse(request.Form[controlId], out Guid downloadGuid);
                             var download = await _downloadService.GetDownloadByGuid(downloadGuid);
                             if (download != null)
                             {
-                                attributesXml = _contactAttributeParser.AddContactAttribute(attributesXml,
-                                           attribute, download.DownloadGuid.ToString());
+                                customAttributes = _contactAttributeParser.AddContactAttribute(customAttributes,
+                                           attribute, download.DownloadGuid.ToString()).ToList();
                             }
                         }
                         break;
@@ -182,37 +179,37 @@ namespace Grand.Web.Commands.Handler.Common
             //validate conditional attributes (if specified)
             foreach (var attribute in contactAttributes)
             {
-                var conditionMet = await _contactAttributeParser.IsConditionMet(attribute, attributesXml);
+                var conditionMet = await _contactAttributeParser.IsConditionMet(attribute, customAttributes);
                 if (conditionMet.HasValue && !conditionMet.Value)
-                    attributesXml = _contactAttributeParser.RemoveContactAttribute(attributesXml, attribute);
+                    customAttributes = _contactAttributeParser.RemoveContactAttribute(customAttributes, attribute).ToList();
             }
 
-            return attributesXml;
+            return customAttributes;
         }
 
-        private async Task<IList<string>> GetContactAttributesWarnings(string contactAttributesXml, string storeId)
+        private async Task<IList<string>> GetContactAttributesWarnings(IList<CustomAttribute> customAttributes, string storeId)
         {
             var warnings = new List<string>();
 
             //selected attributes
-            var attributes1 = await _contactAttributeParser.ParseContactAttributes(contactAttributesXml);
+            var attributes1 = await _contactAttributeParser.ParseContactAttributes(customAttributes);
 
             //existing contact attributes
             var attributes2 = await _contactAttributeService.GetAllContactAttributes(storeId);
             foreach (var a2 in attributes2)
             {
-                var conditionMet = await _contactAttributeParser.IsConditionMet(a2, contactAttributesXml);
+                var conditionMet = await _contactAttributeParser.IsConditionMet(a2, customAttributes);
                 if (a2.IsRequired && ((conditionMet.HasValue && conditionMet.Value) || !conditionMet.HasValue))
                 {
-                    bool found = false;
+                    var found = false;
                     //selected checkout attributes
                     foreach (var a1 in attributes1)
                     {
                         if (a1.Id == a2.Id)
                         {
-                            var attributeValuesStr = _contactAttributeParser.ParseValues(contactAttributesXml, a1.Id);
-                            foreach (string str1 in attributeValuesStr)
-                                if (!String.IsNullOrEmpty(str1.Trim()))
+                            var attributeValuesStr = customAttributes.Where(x => x.Key == a1.Id).Select(x => x.Value).ToList();
+                            foreach (var str1 in attributeValuesStr)
+                                if (!string.IsNullOrEmpty(str1.Trim()))
                                 {
                                     found = true;
                                     break;
@@ -238,16 +235,21 @@ namespace Grand.Web.Commands.Handler.Common
             {
                 if (ca.ValidationMinLength.HasValue)
                 {
+
                     if (ca.AttributeControlType == AttributeControlType.TextBox ||
                         ca.AttributeControlType == AttributeControlType.MultilineTextbox)
                     {
-                        var valuesStr = _contactAttributeParser.ParseValues(contactAttributesXml, ca.Id);
-                        var enteredText = valuesStr.FirstOrDefault();
-                        int enteredTextLength = String.IsNullOrEmpty(enteredText) ? 0 : enteredText.Length;
-
-                        if (ca.ValidationMinLength.Value > enteredTextLength)
+                        var conditionMet = await _contactAttributeParser.IsConditionMet(ca, customAttributes);
+                        if (ca.IsRequired && ((conditionMet.HasValue && conditionMet.Value) || !conditionMet.HasValue))
                         {
-                            warnings.Add(string.Format(_localizationService.GetResource("ContactUs.TextboxMinimumLength"), ca.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), ca.ValidationMinLength.Value));
+                            var valuesStr = customAttributes.Where(x => x.Key == ca.Id).Select(x => x.Value).ToList();
+                            var enteredText = valuesStr.FirstOrDefault();
+                            var enteredTextLength = string.IsNullOrEmpty(enteredText) ? 0 : enteredText.Length;
+
+                            if (ca.ValidationMinLength.Value > enteredTextLength)
+                            {
+                                warnings.Add(string.Format(_localizationService.GetResource("ContactUs.TextboxMinimumLength"), ca.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), ca.ValidationMinLength.Value));
+                            }
                         }
                     }
                 }
@@ -258,13 +260,17 @@ namespace Grand.Web.Commands.Handler.Common
                     if (ca.AttributeControlType == AttributeControlType.TextBox ||
                         ca.AttributeControlType == AttributeControlType.MultilineTextbox)
                     {
-                        var valuesStr = _contactAttributeParser.ParseValues(contactAttributesXml, ca.Id);
-                        var enteredText = valuesStr.FirstOrDefault();
-                        int enteredTextLength = String.IsNullOrEmpty(enteredText) ? 0 : enteredText.Length;
-
-                        if (ca.ValidationMaxLength.Value < enteredTextLength)
+                        var conditionMet = await _contactAttributeParser.IsConditionMet(ca, customAttributes);
+                        if (ca.IsRequired && ((conditionMet.HasValue && conditionMet.Value) || !conditionMet.HasValue))
                         {
-                            warnings.Add(string.Format(_localizationService.GetResource("ContactUs.TextboxMaximumLength"), ca.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), ca.ValidationMaxLength.Value));
+                            var valuesStr = customAttributes.Where(x => x.Key == ca.Id).Select(x => x.Value).ToList();
+                            var enteredText = valuesStr.FirstOrDefault();
+                            var enteredTextLength = string.IsNullOrEmpty(enteredText) ? 0 : enteredText.Length;
+
+                            if (ca.ValidationMaxLength.Value < enteredTextLength)
+                            {
+                                warnings.Add(string.Format(_localizationService.GetResource("ContactUs.TextboxMaximumLength"), ca.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id), ca.ValidationMaxLength.Value));
+                            }
                         }
                     }
                 }
@@ -273,7 +279,7 @@ namespace Grand.Web.Commands.Handler.Common
             return warnings;
         }
 
-        private async Task<IList<ContactUsModel.ContactAttributeModel>> PrepareContactAttributeModel(string selectedContactAttributes, string storeId)
+        private async Task<IList<ContactUsModel.ContactAttributeModel>> PrepareContactAttributeModel(IList<CustomAttribute> selectedContactAttributes, string storeId)
         {
             var model = new List<ContactUsModel.ContactAttributeModel>();
 
@@ -288,7 +294,7 @@ namespace Grand.Web.Commands.Handler.Common
                     AttributeControlType = attribute.AttributeControlType,
                     DefaultValue = attribute.DefaultValue
                 };
-                if (!String.IsNullOrEmpty(attribute.ValidationFileAllowedExtensions))
+                if (!string.IsNullOrEmpty(attribute.ValidationFileAllowedExtensions))
                 {
                     attributeModel.AllowedFileExtensions = attribute.ValidationFileAllowedExtensions
                         .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
@@ -320,7 +326,7 @@ namespace Grand.Web.Commands.Handler.Common
                     case AttributeControlType.ColorSquares:
                     case AttributeControlType.ImageSquares:
                         {
-                            if (!String.IsNullOrEmpty(selectedContactAttributes))
+                            if (selectedContactAttributes != null || selectedContactAttributes.Any())
                             {
                                 //clear default selection
                                 foreach (var item in attributeModel.Values)
@@ -345,9 +351,9 @@ namespace Grand.Web.Commands.Handler.Common
                     case AttributeControlType.TextBox:
                     case AttributeControlType.MultilineTextbox:
                         {
-                            if (!String.IsNullOrEmpty(selectedContactAttributes))
+                            if (selectedContactAttributes != null || selectedContactAttributes.Any())
                             {
-                                var enteredText = _contactAttributeParser.ParseValues(selectedContactAttributes, attribute.Id);
+                                var enteredText = selectedContactAttributes.Where(x => x.Key == attribute.Id).Select(x => x.Value).ToList(); ;
                                 if (enteredText.Any())
                                     attributeModel.DefaultValue = enteredText[0];
                             }
@@ -355,30 +361,31 @@ namespace Grand.Web.Commands.Handler.Common
                         break;
                     case AttributeControlType.Datepicker:
                         {
-                            //keep in mind my that the code below works only in the current culture
-                            var selectedDateStr = _contactAttributeParser.ParseValues(selectedContactAttributes, attribute.Id);
-                            if (selectedDateStr.Any())
+                            if (selectedContactAttributes != null || selectedContactAttributes.Any())
                             {
-                                DateTime selectedDate;
-                                if (DateTime.TryParseExact(selectedDateStr[0], "D", CultureInfo.CurrentCulture,
-                                                       DateTimeStyles.None, out selectedDate))
+                                //keep in mind my that the code below works only in the current culture
+                                var selectedDateStr = selectedContactAttributes.Where(x => x.Key == attribute.Id).Select(x => x.Value).ToList();
+                                if (selectedDateStr.Any())
                                 {
-                                    //successfully parsed
-                                    attributeModel.SelectedDay = selectedDate.Day;
-                                    attributeModel.SelectedMonth = selectedDate.Month;
-                                    attributeModel.SelectedYear = selectedDate.Year;
+                                    DateTime selectedDate;
+                                    if (DateTime.TryParseExact(selectedDateStr[0], "D", CultureInfo.CurrentCulture,
+                                                           DateTimeStyles.None, out selectedDate))
+                                    {
+                                        //successfully parsed
+                                        attributeModel.SelectedDay = selectedDate.Day;
+                                        attributeModel.SelectedMonth = selectedDate.Month;
+                                        attributeModel.SelectedYear = selectedDate.Year;
+                                    }
                                 }
                             }
-
                         }
                         break;
                     case AttributeControlType.FileUpload:
                         {
-                            if (!String.IsNullOrEmpty(selectedContactAttributes))
+                            if (selectedContactAttributes != null || selectedContactAttributes.Any())
                             {
-                                var downloadGuidStr = _contactAttributeParser.ParseValues(selectedContactAttributes, attribute.Id).FirstOrDefault();
-                                Guid downloadGuid;
-                                Guid.TryParse(downloadGuidStr, out downloadGuid);
+                                var downloadGuidStr = selectedContactAttributes.Where(x => x.Key == attribute.Id).Select(x => x.Value).FirstOrDefault();
+                                Guid.TryParse(downloadGuidStr, out Guid downloadGuid);
                                 var download = await _downloadService.GetDownloadByGuid(downloadGuid);
                                 if (download != null)
                                     attributeModel.DefaultValue = download.DownloadGuid.ToString();
@@ -397,12 +404,10 @@ namespace Grand.Web.Commands.Handler.Common
 
         private async Task<ContactUsModel> SendContactUs(ContactUsModel model, Store store)
         {
-            string email = model.Email.Trim();
-            string fullName = model.FullName;
-            string subject = _commonSettings.SubjectFieldOnContactUsForm ? model.Subject : null;
-            string body = Core.Html.HtmlHelper.FormatText(model.Enquiry, false, true, false, false, false, false);
+            var subject = _commonSettings.SubjectFieldOnContactUsForm ? model.Subject : null;
+            var body = FormatText.ConvertText(model.Enquiry);
 
-            await _workflowMessageService.SendContactUsMessage(_workContext.CurrentCustomer, store, _workContext.WorkingLanguage.Id, model.Email.Trim(), model.FullName, subject, body, model.ContactAttributeInfo, model.ContactAttributeXml);
+            await _workflowMessageService.SendContactUsMessage(_workContext.CurrentCustomer, store, _workContext.WorkingLanguage.Id, model.Email.Trim(), model.FullName, subject, body, model.ContactAttributeInfo, model.ContactAttribute);
 
             model.SuccessfullySent = true;
             model.Result = _localizationService.GetResource("ContactUs.YourEnquiryHasBeenSent");

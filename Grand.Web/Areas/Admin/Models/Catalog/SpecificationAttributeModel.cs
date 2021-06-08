@@ -1,14 +1,13 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Localization;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Catalog;
+﻿using Grand.Framework.Localization;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using System.Collections.Generic;
+using Grand.Framework.Mvc.Models;
+using Grand.Framework.Mapping;
 
 namespace Grand.Web.Areas.Admin.Models.Catalog
 {
-    [Validator(typeof(SpecificationAttributeValidator))]
-    public partial class SpecificationAttributeModel : BaseGrandEntityModel, ILocalizedModel<SpecificationAttributeLocalizedModel>
+    public partial class SpecificationAttributeModel : BaseEntityModel, ILocalizedModel<SpecificationAttributeLocalizedModel>, IStoreMappingModel
     {
         public SpecificationAttributeModel()
         {
@@ -22,8 +21,14 @@ namespace Grand.Web.Areas.Admin.Models.Catalog
         public string SeName { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.SpecificationAttributes.Fields.DisplayOrder")]
-        public int DisplayOrder {get;set;}
+        public int DisplayOrder { get; set; }
 
+        //Store mapping
+        [GrandResourceDisplayName("Admin.Catalog.Categories.Fields.LimitedToStores")]
+        public bool LimitedToStores { get; set; }
+        [GrandResourceDisplayName("Admin.Catalog.Categories.Fields.AvailableStores")]
+        public List<StoreModel> AvailableStores { get; set; }
+        public string[] SelectedStoreIds { get; set; }
 
         public IList<SpecificationAttributeLocalizedModel> Locales { get; set; }
 

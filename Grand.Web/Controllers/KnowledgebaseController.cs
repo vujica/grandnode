@@ -3,17 +3,14 @@ using Grand.Core.Caching;
 using Grand.Domain.Customers;
 using Grand.Domain.Knowledgebase;
 using Grand.Domain.Localization;
-using Grand.Domain.Media;
 using Grand.Framework.Controllers;
 using Grand.Framework.Mvc.Filters;
 using Grand.Framework.Security.Captcha;
-using Grand.Services.Common;
 using Grand.Services.Customers;
 using Grand.Services.Helpers;
 using Grand.Services.Knowledgebase;
 using Grand.Services.Localization;
 using Grand.Services.Logging;
-using Grand.Services.Media;
 using Grand.Services.Messages;
 using Grand.Services.Security;
 using Grand.Services.Seo;
@@ -33,7 +30,7 @@ namespace Grand.Web.Controllers
         private readonly IKnowledgebaseService _knowledgebaseService;
         private readonly IWorkContext _workContext;
         private readonly IStoreContext _storeContext;
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly IAclService _aclService;
         private readonly IStoreMappingService _storeMappingService;
         private readonly ILocalizationService _localizationService;
@@ -43,20 +40,30 @@ namespace Grand.Web.Controllers
         private readonly ICustomerActivityService _customerActivityService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly CustomerSettings _customerSettings;
-        private readonly MediaSettings _mediaSettings;
-        private readonly IPictureService _pictureService;
+        private readonly IPermissionService _permissionService;
 
-        public KnowledgebaseController(KnowledgebaseSettings knowledgebaseSettings, IKnowledgebaseService knowledgebaseService, IWorkContext workContext,
-            IStoreContext storeContext, ICacheManager cacheManager, IAclService aclService, IStoreMappingService storeMappingService, ILocalizationService localizationService,
-            CaptchaSettings captchaSettings, LocalizationSettings localizationSettings, IWorkflowMessageService workflowMessageService,
-            ICustomerActivityService customerActivityService, IDateTimeHelper dateTimeHelper, CustomerSettings customerSettings,
-            MediaSettings mediaSettings, IPictureService pictureService)
+        public KnowledgebaseController(
+            KnowledgebaseSettings knowledgebaseSettings,
+            IKnowledgebaseService knowledgebaseService,
+            IWorkContext workContext,
+            IStoreContext storeContext,
+            ICacheBase cacheManager,
+            IAclService aclService,
+            IStoreMappingService storeMappingService,
+            ILocalizationService localizationService,
+            CaptchaSettings captchaSettings,
+            LocalizationSettings localizationSettings,
+            IWorkflowMessageService workflowMessageService,
+            ICustomerActivityService customerActivityService,
+            IDateTimeHelper dateTimeHelper,
+            CustomerSettings customerSettings,
+            IPermissionService permissionService)
         {
             _knowledgebaseSettings = knowledgebaseSettings;
             _knowledgebaseService = knowledgebaseService;
             _workContext = workContext;
             _storeContext = storeContext;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _aclService = aclService;
             _storeMappingService = storeMappingService;
             _localizationService = localizationService;
@@ -66,8 +73,7 @@ namespace Grand.Web.Controllers
             _customerActivityService = customerActivityService;
             _dateTimeHelper = dateTimeHelper;
             _customerSettings = customerSettings;
-            _mediaSettings = mediaSettings;
-            _pictureService = pictureService;
+            _permissionService = permissionService;
         }
 
         public virtual IActionResult List()
@@ -99,6 +105,11 @@ namespace Grand.Web.Controllers
                 IsArticle = true
             }));
 
+            //display "edit" (manage) link
+            var customer = _workContext.CurrentCustomer;
+            if (await _permissionService.Authorize(StandardPermissionProvider.AccessAdminPanel, customer) && await _permissionService.Authorize(StandardPermissionProvider.ManageKnowledgebase, customer))
+                DisplayEditLink(Url.Action("EditCategory", "Knowledgebase", new { id = categoryId, area = "Admin" }));
+
             model.CurrentCategoryId = categoryId;
 
             model.CurrentCategoryDescription = category.GetLocalized(y => y.Description, _workContext.WorkingLanguage.Id);
@@ -110,7 +121,7 @@ namespace Grand.Web.Controllers
 
             string breadcrumbCacheKey = string.Format(ModelCacheEventConst.KNOWLEDGEBASE_CATEGORY_BREADCRUMB_KEY, category.Id,
             string.Join(",", _workContext.CurrentCustomer.GetCustomerRoleIds()), _storeContext.CurrentStore.Id, _workContext.WorkingLanguage.Id);
-            model.CategoryBreadcrumb = await _cacheManager.GetAsync(breadcrumbCacheKey, async () =>
+            model.CategoryBreadcrumb = await _cacheBase.GetAsync(breadcrumbCacheKey, async () =>
                 (await category.GetCategoryBreadCrumb(_knowledgebaseService, _aclService, _storeMappingService))
                 .Select(catBr => new KnowledgebaseCategoryModel {
                     Id = catBr.Id,
@@ -180,6 +191,10 @@ namespace Grand.Web.Controllers
             if (!_storeMappingService.Authorize(article))
                 return InvokeHttp404();
 
+            //display "edit" (manage) link
+            if (await _permissionService.Authorize(StandardPermissionProvider.AccessAdminPanel, customer) && await _permissionService.Authorize(StandardPermissionProvider.ManageKnowledgebase, customer))
+                DisplayEditLink(Url.Action("EditArticle", "Knowledgebase", new { id = article.Id, area = "Admin" }));
+
             var model = new KnowledgebaseArticleModel();
 
             await PrepareKnowledgebaseArticleModel(model, article, customerService);
@@ -195,6 +210,11 @@ namespace Grand.Web.Controllers
             model.SeName = article.GetLocalized(y => y.SeName, _workContext.WorkingLanguage.Id);
             model.AllowComments = article.AllowComments;
             model.AddNewComment.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnArticleCommentPage;
+
+            model.MetaTitle = article.GetLocalized(y => y.MetaTitle, _workContext.WorkingLanguage.Id);
+            model.MetaDescription = article.GetLocalized(y => y.MetaDescription, _workContext.WorkingLanguage.Id);
+            model.MetaKeywords = article.GetLocalized(y => y.MetaKeywords, _workContext.WorkingLanguage.Id);
+
             var articleComments = await _knowledgebaseService.GetArticleCommentsByArticleId(article.Id);
             foreach (var ac in articleComments)
             {
@@ -205,17 +225,7 @@ namespace Grand.Web.Controllers
                     CustomerName = customer.FormatUserName(_customerSettings.CustomerNameFormat),
                     CommentText = ac.CommentText,
                     CreatedOn = _dateTimeHelper.ConvertToUserTime(ac.CreatedOnUtc, DateTimeKind.Utc),
-                    AllowViewingProfiles = _customerSettings.AllowViewingProfiles && customer != null && !customer.IsGuest(),
                 };
-                if (_customerSettings.AllowCustomersToUploadAvatars)
-                {
-                    commentModel.CustomerAvatarUrl = await _pictureService.GetPictureUrl(
-                        customer.GetAttributeFromEntity<string>(SystemCustomerAttributeNames.AvatarPictureId),
-                        _mediaSettings.AvatarPictureSize,
-                        _customerSettings.DefaultAvatarEnabled,
-                        defaultPictureType: PictureType.Avatar);
-                }
-
                 model.Comments.Add(commentModel);
             }
 
@@ -238,7 +248,7 @@ namespace Grand.Web.Controllers
                 string.Join(",", _workContext.CurrentCustomer.GetCustomerRoleIds()),
                 _storeContext.CurrentStore.Id,
                 _workContext.WorkingLanguage.Id);
-                model.CategoryBreadcrumb = await _cacheManager.GetAsync(breadcrumbCacheKey, async () =>
+                model.CategoryBreadcrumb = await _cacheBase.GetAsync(breadcrumbCacheKey, async () =>
                     (await category.GetCategoryBreadCrumb(_knowledgebaseService, _aclService, _storeMappingService))
                     .Select(catBr => new KnowledgebaseCategoryModel {
                         Id = catBr.Id,

@@ -2,6 +2,7 @@ using Grand.Domain.Localization;
 using Grand.Domain.Security;
 using Grand.Domain.Seo;
 using Grand.Domain.Stores;
+using MongoDB.Driver.GeoJsonObjectModel;
 using System;
 using System.Collections.Generic;
 
@@ -25,6 +26,7 @@ namespace Grand.Domain.Catalog
         private ICollection<RelatedProduct> _relatedProduct;
         private ICollection<SimilarProduct> _similarProduct;
         private ICollection<BundleProduct> _bundleProduct;
+        private ICollection<ProductPrice> _productprices;
         private ICollection<string> _productTags;
         public Product()
         {
@@ -247,11 +249,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (IntervalUnit)this.IntervalUnitId;
+                return (IntervalUnit)IntervalUnitId;
             }
             set
             {
-                this.IntervalUnitId = (int)value;
+                IntervalUnitId = (int)value;
             }
 
         }
@@ -557,6 +559,11 @@ namespace Grand.Domain.Catalog
         public string Flag { get; set; }
 
         /// <summary>
+        /// Gets or sets the coordinates
+        /// </summary>
+        public GeoJson2DCoordinates Coordinates { get; set; }
+
+        /// <summary>
         /// Gets or sets the collection of locales
         /// </summary>
         public IList<LocalizedProperty> Locales { get; set; }
@@ -568,11 +575,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (ProductType)this.ProductTypeId;
+                return (ProductType)ProductTypeId;
             }
             set
             {
-                this.ProductTypeId = (int)value;
+                ProductTypeId = (int)value;
             }
         }
 
@@ -583,11 +590,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (BackorderMode)this.BackorderModeId;
+                return (BackorderMode)BackorderModeId;
             }
             set
             {
-                this.BackorderModeId = (int)value;
+                BackorderModeId = (int)value;
             }
         }
 
@@ -598,11 +605,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (DownloadActivationType)this.DownloadActivationTypeId;
+                return (DownloadActivationType)DownloadActivationTypeId;
             }
             set
             {
-                this.DownloadActivationTypeId = (int)value;
+                DownloadActivationTypeId = (int)value;
             }
         }
 
@@ -613,11 +620,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (GiftCardType)this.GiftCardTypeId;
+                return (GiftCardType)GiftCardTypeId;
             }
             set
             {
-                this.GiftCardTypeId = (int)value;
+                GiftCardTypeId = (int)value;
             }
         }
 
@@ -628,11 +635,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (LowStockActivity)this.LowStockActivityId;
+                return (LowStockActivity)LowStockActivityId;
             }
             set
             {
-                this.LowStockActivityId = (int)value;
+                LowStockActivityId = (int)value;
             }
         }
 
@@ -643,11 +650,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (ManageInventoryMethod)this.ManageInventoryMethodId;
+                return (ManageInventoryMethod)ManageInventoryMethodId;
             }
             set
             {
-                this.ManageInventoryMethodId = (int)value;
+                ManageInventoryMethodId = (int)value;
             }
         }
 
@@ -658,11 +665,11 @@ namespace Grand.Domain.Catalog
         {
             get
             {
-                return (RecurringProductCyclePeriod)this.RecurringCyclePeriodId;
+                return (RecurringProductCyclePeriod)RecurringCyclePeriodId;
             }
             set
             {
-                this.RecurringCyclePeriodId = (int)value;
+                RecurringCyclePeriodId = (int)value;
             }
         }
 
@@ -671,7 +678,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductCategory> ProductCategories
         {
-            get { return _productCategories ?? (_productCategories = new List<ProductCategory>()); }
+            get { return _productCategories ??= new List<ProductCategory>(); }
             protected set { _productCategories = value; }
         }
 
@@ -680,7 +687,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductManufacturer> ProductManufacturers
         {
-            get { return _productManufacturers ?? (_productManufacturers = new List<ProductManufacturer>()); }
+            get { return _productManufacturers ??= new List<ProductManufacturer>(); }
             protected set { _productManufacturers = value; }
         }
 
@@ -689,7 +696,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductPicture> ProductPictures
         {
-            get { return _productPictures ?? (_productPictures = new List<ProductPicture>()); }
+            get { return _productPictures ??= new List<ProductPicture>(); }
             protected set { _productPictures = value; }
         }
 
@@ -698,7 +705,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductSpecificationAttribute> ProductSpecificationAttributes
         {
-            get { return _productSpecificationAttributes ?? (_productSpecificationAttributes = new List<ProductSpecificationAttribute>()); }
+            get { return _productSpecificationAttributes ??= new List<ProductSpecificationAttribute>(); }
             protected set { _productSpecificationAttributes = value; }
         }
 
@@ -707,7 +714,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<string> ProductTags
         {
-            get { return _productTags ?? (_productTags = new List<string>()); }
+            get { return _productTags ??= new List<string>(); }
             protected set { _productTags = value; }
         }
 
@@ -716,7 +723,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductAttributeMapping> ProductAttributeMappings
         {
-            get { return _productAttributeMappings ?? (_productAttributeMappings = new List<ProductAttributeMapping>()); }
+            get { return _productAttributeMappings ??= new List<ProductAttributeMapping>(); }
             protected set { _productAttributeMappings = value; }
         }
 
@@ -725,16 +732,22 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductAttributeCombination> ProductAttributeCombinations
         {
-            get { return _productAttributeCombinations ?? (_productAttributeCombinations = new List<ProductAttributeCombination>()); }
+            get { return _productAttributeCombinations ??= new List<ProductAttributeCombination>(); }
             protected set { _productAttributeCombinations = value; }
         }
-
+        /// <summary>
+        /// Gets or sets the product prices
+        /// </summary>
+        public virtual ICollection<ProductPrice> ProductPrices {
+            get { return _productprices ??= new List<ProductPrice>(); }
+            protected set { _productprices = value; }
+        }
         /// <summary>
         /// Gets or sets the tier prices
         /// </summary>
         public virtual ICollection<TierPrice> TierPrices
         {
-            get { return _tierPrices ?? (_tierPrices = new List<TierPrice>()); }
+            get { return _tierPrices ??= new List<TierPrice>(); }
             protected set { _tierPrices = value; }
         }
 
@@ -743,7 +756,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<string> AppliedDiscounts
         {
-            get { return _appliedDiscounts ?? (_appliedDiscounts = new List<string>()); }
+            get { return _appliedDiscounts ??= new List<string>(); }
             protected set { _appliedDiscounts = value; }
         }
         
@@ -752,28 +765,28 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<ProductWarehouseInventory> ProductWarehouseInventory
         {
-            get { return _productWarehouseInventory ?? (_productWarehouseInventory = new List<ProductWarehouseInventory>()); }
+            get { return _productWarehouseInventory ??= new List<ProductWarehouseInventory>(); }
             protected set { _productWarehouseInventory = value; }
         }
 
         public virtual ICollection<string> CrossSellProduct
         {
-            get { return _crossSellProduct ?? (_crossSellProduct = new List<string>()); }
+            get { return _crossSellProduct ??= new List<string>(); }
             protected set { _crossSellProduct = value; }
         }
 
         public virtual ICollection<RelatedProduct> RelatedProducts
         {
-            get { return _relatedProduct ?? (_relatedProduct = new List<RelatedProduct>()); }
+            get { return _relatedProduct ??= new List<RelatedProduct>(); }
             protected set { _relatedProduct = value; }
         }
         public virtual ICollection<SimilarProduct> SimilarProducts {
-            get { return _similarProduct ?? (_similarProduct = new List<SimilarProduct>()); }
+            get { return _similarProduct ??= new List<SimilarProduct>(); }
             protected set { _similarProduct = value; }
         }
         public virtual ICollection<BundleProduct> BundleProducts
         {
-            get { return _bundleProduct ?? (_bundleProduct = new List<BundleProduct>()); }
+            get { return _bundleProduct ??= new List<BundleProduct>(); }
             protected set { _bundleProduct = value; }
         }
 

@@ -102,7 +102,7 @@
                                 title: "@T("Admin.Catalog.Products.Manufacturers.Fields.Manufacturer")",
                                 width: 200,
                                 editor: manufacturerDropDownEditor,
-                                template: '<a class="k-link" href="@Url.Content("~/Admin/Manufacturer/Edit/")#=ManufacturerId#">#:Manufacturer#</a>'
+                                template: '<a class="k-link" href="@Url.Action("Edit", "Manufacturer")/#=ManufacturerId#">#:Manufacturer#</a>'
                             },
                             @if (!Model.IsLoggedInAsVendor)
                             {
@@ -151,7 +151,7 @@
                         <text>
                         {
                             Id: '@(manufacturerItem.Value)',
-                            Name: "@(Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(manufacturerItem.Text)))"
+                            Name: "@(Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(string.IsNullOrEmpty(manufacturerItem.Text) ? "" : manufacturerItem.Text)))"
                         }
                         </text>
                         if (i != Model.AvailableManufacturers.Count - 1)

@@ -1,7 +1,7 @@
 ﻿@model ProductModel.AddRequiredProductModel
 @inject AdminAreaSettings adminAreaSettings
 @{
-    Layout = "~/Areas/Admin/Views/Shared/_AdminPopupLayout.cshtml";
+    Layout = Grand.Web.Areas.Admin.Extensions.Constants.Layout_AdminPopup;
     //page title
     ViewBag.Title = T("Admin.Catalog.Products.Fields.RequiredProductIds.Choose").Text;
 }
@@ -57,7 +57,7 @@
                             </div>
                             <div class="form-actions">
                                 <div class="row">
-                                    <div class="col-md-offset-1 col-md-11 col-sm-11 btn-group btn-group-devided">
+                                    <div class="offset-md-1 col-md-11 col-sm-11 btn-group btn-group-devided">
                                         <button class="btn btn-success filter-submit" id="search-products">
                                             <i class="fa fa-search"></i> @T("Admin.Common.Search")
                                         </button>

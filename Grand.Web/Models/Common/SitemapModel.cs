@@ -1,4 +1,4 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 using Grand.Web.Models.Catalog;
 using Grand.Web.Models.Topics;
 using Grand.Web.Models.Blogs;
@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace Grand.Web.Models.Common
 {
-    public partial class SitemapModel : BaseGrandModel
+    public partial class SitemapModel : BaseModel
     {
         public SitemapModel()
         {
@@ -27,7 +27,6 @@ namespace Grand.Web.Models.Common
 
         public bool NewsEnabled { get; set; }
         public bool BlogEnabled { get; set; }
-        public bool ForumEnabled { get; set; }
         public bool KnowledgebaseEnabled { get; set; }
     }
 }

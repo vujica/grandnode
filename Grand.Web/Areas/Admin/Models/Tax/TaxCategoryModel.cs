@@ -1,15 +1,12 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Tax;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Tax
 {
-    [Validator(typeof(TaxCategoryValidator))]
-    public partial class TaxCategoryModel : BaseGrandEntityModel
+    public partial class TaxCategoryModel : BaseEntityModel
     {
         [GrandResourceDisplayName("Admin.Configuration.Tax.Categories.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Configuration.Tax.Categories.Fields.DisplayOrder")]

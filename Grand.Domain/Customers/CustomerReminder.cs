@@ -41,7 +41,7 @@ namespace Grand.Domain.Customers
         public CustomerReminderConditionEnum Condition
         {
             get { return (CustomerReminderConditionEnum)ConditionId; }
-            set { this.ConditionId = (int)value; }
+            set { ConditionId = (int)value; }
         }
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace Grand.Domain.Customers
         public CustomerReminderRuleEnum ReminderRule
         {
             get { return (CustomerReminderRuleEnum)ReminderRuleId; }
-            set { this.ReminderRuleId = (int)value; }
+            set { ReminderRuleId = (int)value; }
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<ReminderCondition> Conditions
         {
-            get { return _condition ?? (_condition = new List<ReminderCondition>()); }
+            get { return _condition ??= new List<ReminderCondition>(); }
             protected set { _condition = value; }
         }
 
@@ -69,7 +69,7 @@ namespace Grand.Domain.Customers
         /// </summary>
         public virtual ICollection<ReminderLevel> Levels
         {
-            get { return _level ?? (_level = new List<ReminderLevel>()); }
+            get { return _level ??= new List<ReminderLevel>(); }
             protected set { _level = value; }
         }
 
@@ -91,7 +91,7 @@ namespace Grand.Domain.Customers
             public CustomerReminderConditionTypeEnum ConditionType
             {
                 get { return (CustomerReminderConditionTypeEnum)ConditionTypeId; }
-                set { this.ConditionTypeId = (int)value; }
+                set { ConditionTypeId = (int)value; }
             }
 
             public int ConditionId { get; set; }
@@ -99,48 +99,48 @@ namespace Grand.Domain.Customers
             public CustomerReminderConditionEnum Condition
             {
                 get { return (CustomerReminderConditionEnum)ConditionId; }
-                set { this.ConditionId = (int)value; }
+                set { ConditionId = (int)value; }
             }
 
 
             public virtual ICollection<string> Products
             {
-                get { return _products ?? (_products = new List<string>()); }
+                get { return _products ??= new List<string>(); }
                 protected set { _products = value; }
             }
 
             public virtual ICollection<string> Categories
             {
-                get { return _categories ?? (_categories = new List<string>()); }
+                get { return _categories ??= new List<string>(); }
                 protected set { _categories = value; }
             }
 
             public virtual ICollection<string> Manufacturers
             {
-                get { return _manufacturers ?? (_manufacturers = new List<string>()); }
+                get { return _manufacturers ??= new List<string>(); }
                 protected set { _manufacturers = value; }
             }
 
             public virtual ICollection<string> CustomerRoles
             {
-                get { return _customerRoles ?? (_customerRoles = new List<string>()); }
+                get { return _customerRoles ??= new List<string>(); }
                 protected set { _customerRoles = value; }
             }
             public virtual ICollection<string> CustomerTags
             {
-                get { return _customerTags ?? (_customerTags = new List<string>()); }
+                get { return _customerTags ??= new List<string>(); }
                 protected set { _customerTags = value; }
             }
 
             public virtual ICollection<CustomerRegister> CustomerRegistration
             {
-                get { return _customerRegister ?? (_customerRegister = new List<CustomerRegister>()); }
+                get { return _customerRegister ??= new List<CustomerRegister>(); }
                 protected set { _customerRegister = value; }
             }
 
             public virtual ICollection<CustomerRegister> CustomCustomerAttributes
             {
-                get { return _customCustomerAttributes ?? (_customCustomerAttributes = new List<CustomerRegister>()); }
+                get { return _customCustomerAttributes ??= new List<CustomerRegister>(); }
                 protected set { _customCustomerAttributes = value; }
             }
 

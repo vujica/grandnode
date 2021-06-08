@@ -1,7 +1,7 @@
 ﻿using Grand.Core;
 using Grand.Domain.Catalog;
+using Grand.Domain.Common;
 using Grand.Domain.Customers;
-using Grand.Domain.Forums;
 using Grand.Domain.Tax;
 using Grand.Framework.Controllers;
 using Grand.Framework.Kendoui;
@@ -15,11 +15,13 @@ using Grand.Services.ExportImport;
 using Grand.Services.Localization;
 using Grand.Services.Media;
 using Grand.Services.Messages;
+using Grand.Services.Orders;
 using Grand.Services.Security;
 using Grand.Web.Areas.Admin.Extensions;
 using Grand.Web.Areas.Admin.Interfaces;
 using Grand.Web.Areas.Admin.Models.Catalog;
 using Grand.Web.Areas.Admin.Models.Customers;
+using Grand.Web.Areas.Admin.Models.Orders;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -44,7 +46,6 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IGenericAttributeService _genericAttributeService;
         private readonly ICustomerRegistrationService _customerRegistrationService;
         private readonly ILocalizationService _localizationService;
-        private readonly CustomerSettings _customerSettings;
         private readonly IWorkContext _workContext;
         private readonly IStoreContext _storeContext;
         private readonly IExportManager _exportManager;
@@ -54,7 +55,8 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IAddressAttributeService _addressAttributeService;
         private readonly IWorkflowMessageService _workflowMessageService;
         private readonly IDownloadService _downloadService;
-
+        private readonly IPermissionService _permissionService;
+        private readonly CustomerSettings _customerSettings;
         #endregion
 
         #region Constructors
@@ -68,7 +70,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             IGenericAttributeService genericAttributeService,
             ICustomerRegistrationService customerRegistrationService,
             ILocalizationService localizationService,
-            CustomerSettings customerSettings,
             IWorkContext workContext,
             IStoreContext storeContext,
             IExportManager exportManager,
@@ -77,7 +78,9 @@ namespace Grand.Web.Areas.Admin.Controllers
             IAddressAttributeParser addressAttributeParser,
             IAddressAttributeService addressAttributeService,
             IWorkflowMessageService workflowMessageService,
-            IDownloadService downloadService)
+            IDownloadService downloadService,
+            IPermissionService permissionService,
+            CustomerSettings customerSettings)
         {
             _customerService = customerService;
             _productService = productService;
@@ -88,7 +91,6 @@ namespace Grand.Web.Areas.Admin.Controllers
             _genericAttributeService = genericAttributeService;
             _customerRegistrationService = customerRegistrationService;
             _localizationService = localizationService;
-            _customerSettings = customerSettings;
             _workContext = workContext;
             _storeContext = storeContext;
             _exportManager = exportManager;
@@ -98,16 +100,18 @@ namespace Grand.Web.Areas.Admin.Controllers
             _addressAttributeService = addressAttributeService;
             _workflowMessageService = workflowMessageService;
             _downloadService = downloadService;
+            _permissionService = permissionService;
+            _customerSettings = customerSettings;
         }
 
         #endregion
 
-        protected virtual async Task<string> ParseCustomCustomerAttributes(IFormCollection form)
+        protected virtual async Task<IList<CustomAttribute>> ParseCustomCustomerAttributes(IFormCollection form)
         {
             if (form == null)
                 throw new ArgumentNullException("form");
 
-            string attributesXml = "";
+            var customAttributes = new List<CustomAttribute>();
             var customerAttributes = await _customerAttributeService.GetAllCustomerAttributes();
             foreach (var attribute in customerAttributes)
             {
@@ -118,23 +122,23 @@ namespace Grand.Web.Areas.Admin.Controllers
                     case AttributeControlType.RadioList:
                         {
                             var ctrlAttributes = form[controlId];
-                            if (!String.IsNullOrEmpty(ctrlAttributes))
+                            if (!string.IsNullOrEmpty(ctrlAttributes))
                             {
-                                attributesXml = _customerAttributeParser.AddCustomerAttribute(attributesXml,
-                                    attribute, ctrlAttributes);
+                                customAttributes = _customerAttributeParser.AddCustomerAttribute(customAttributes,
+                                    attribute, ctrlAttributes).ToList();
                             }
                         }
                         break;
                     case AttributeControlType.Checkboxes:
                         {
                             var cblAttributes = form[controlId];
-                            if (!String.IsNullOrEmpty(cblAttributes))
+                            if (!string.IsNullOrEmpty(cblAttributes))
                             {
                                 foreach (var item in cblAttributes.ToString().Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                                 {
-                                    if (!String.IsNullOrEmpty(item))
-                                        attributesXml = _customerAttributeParser.AddCustomerAttribute(attributesXml,
-                                            attribute, item);
+                                    if (!string.IsNullOrEmpty(item))
+                                        customAttributes = _customerAttributeParser.AddCustomerAttribute(customAttributes,
+                                            attribute, item).ToList();
                                 }
                             }
                         }
@@ -148,8 +152,8 @@ namespace Grand.Web.Areas.Admin.Controllers
                                 .Select(v => v.Id)
                                 .ToList())
                             {
-                                attributesXml = _customerAttributeParser.AddCustomerAttribute(attributesXml,
-                                            attribute, selectedAttributeId);
+                                customAttributes = _customerAttributeParser.AddCustomerAttribute(customAttributes,
+                                            attribute, selectedAttributeId).ToList();
                             }
                         }
                         break;
@@ -157,11 +161,11 @@ namespace Grand.Web.Areas.Admin.Controllers
                     case AttributeControlType.MultilineTextbox:
                         {
                             var ctrlAttributes = form[controlId];
-                            if (!String.IsNullOrEmpty(ctrlAttributes))
+                            if (!string.IsNullOrEmpty(ctrlAttributes))
                             {
                                 string enteredText = ctrlAttributes.ToString().Trim();
-                                attributesXml = _customerAttributeParser.AddCustomerAttribute(attributesXml,
-                                    attribute, enteredText);
+                                customAttributes = _customerAttributeParser.AddCustomerAttribute(customAttributes,
+                                    attribute, enteredText).ToList();
                             }
                         }
                         break;
@@ -175,7 +179,13 @@ namespace Grand.Web.Areas.Admin.Controllers
                 }
             }
 
-            return attributesXml;
+            return customAttributes;
+        }
+
+        protected virtual bool CheckSalesManager(Customer customer)
+        {
+            return (_workContext.CurrentCustomer.IsSalesManager()
+                && (_workContext.CurrentCustomer.SeId != customer.SeId));
         }
 
         #region Customers
@@ -188,13 +198,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> CustomerList(DataSourceRequest command, CustomerListModel model,
             string[] searchCustomerRoleIds, string[] searchCustomerTagIds)
         {
             var (customerModelList, totalCount) = await _customerViewModelService.PrepareCustomerList(model, searchCustomerRoleIds, searchCustomerTagIds, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = customerModelList.ToList(),
                 Total = totalCount
             };
@@ -202,6 +212,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = new CustomerModel();
@@ -211,6 +222,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
 
@@ -221,6 +233,13 @@ namespace Grand.Web.Areas.Admin.Controllers
                 var cust2 = await _customerService.GetCustomerByEmail(model.Email);
                 if (cust2 != null)
                     ModelState.AddModelError("", "Email is already registered");
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.Owner))
+            {
+                var custowner = await _customerService.GetCustomerByEmail(model.Owner);
+                if (custowner == null)
+                    ModelState.AddModelError("", "Owner email is not exists");
             }
 
             if (!string.IsNullOrWhiteSpace(model.Username) & _customerSettings.UsernamesEnabled)
@@ -245,9 +264,9 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                model.CustomAttributes = await ParseCustomCustomerAttributes(form);
+                model.Attributes = await ParseCustomCustomerAttributes(form);
                 var customer = await _customerViewModelService.InsertCustomerModel(model);
-                
+
                 //password
                 if (!string.IsNullOrWhiteSpace(model.Password))
                 {
@@ -259,19 +278,21 @@ namespace Grand.Web.Areas.Admin.Controllers
                             ErrorNotification(changePassError);
                     }
                 }
-
                 if (customer.IsAdmin() && !string.IsNullOrEmpty(model.VendorId))
                 {
                     ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.AdminCouldNotbeVendor"));
                 }
-
-                if (newCustomerRoles.Any(x=>x.SystemName == SystemCustomerRoleNames.Vendors) && string.IsNullOrEmpty(model.VendorId))
+                if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.Vendors) && string.IsNullOrEmpty(model.VendorId))
                 {
                     ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInVendoRoleWithoutVendorAssociated"));
                 }
                 if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.Staff) && string.IsNullOrEmpty(model.StaffStoreId))
                 {
                     ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInStaffRoleWithoutStaffAssociated"));
+                }
+                if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.SalesManager) && string.IsNullOrEmpty(model.SeId))
+                {
+                    ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInSalesManagerRoleWithoutSalesEmployeeAssociated"));
                 }
                 if (customer.IsStaff() && customer.IsVendor())
                 {
@@ -287,10 +308,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var customer = await _customerService.GetCustomerById(id);
-            if (customer == null || customer.Deleted)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -299,12 +321,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         [FormValueRequired("save", "save-continue")]
         public async Task<IActionResult> Edit(CustomerModel model, bool continueEditing, IFormCollection form)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null || customer.Deleted)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -314,30 +337,47 @@ namespace Grand.Web.Areas.Admin.Controllers
             foreach (var customerRole in allCustomerRoles)
                 if (model.SelectedCustomerRoleIds != null && model.SelectedCustomerRoleIds.Contains(customerRole.Id))
                     newCustomerRoles.Add(customerRole);
+
             var customerRolesError = _customerViewModelService.ValidateCustomerRoles(newCustomerRoles);
-            if (!String.IsNullOrEmpty(customerRolesError))
+            if (!string.IsNullOrEmpty(customerRolesError))
             {
                 ModelState.AddModelError("", customerRolesError);
                 ErrorNotification(customerRolesError, false);
             }
+            if (!string.IsNullOrWhiteSpace(model.Owner))
+            {
+                var custowner = await _customerService.GetCustomerByEmail(model.Owner);
+                if (custowner == null)
+                    ModelState.AddModelError("", "Owner email is not exists");
+
+                if (model.Owner.ToLower() == model.Email.ToLower())
+                    ModelState.AddModelError("", "You can't assign own email");
+            }
+
+            if (_workContext.CurrentCustomer.IsSalesManager() && customer.Id == _workContext.CurrentCustomer.Id)
+                ModelState.AddModelError("", "You can't edit own data from admin panel");
 
             if (ModelState.IsValid)
             {
                 try
                 {
-                    model.CustomAttributes = await ParseCustomCustomerAttributes(form);
+                    model.Attributes = await ParseCustomCustomerAttributes(form);
                     customer = await _customerViewModelService.UpdateCustomerModel(customer, model);
                     if (customer.IsAdmin() && !string.IsNullOrEmpty(model.VendorId))
                     {
                         ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.AdminCouldNotbeVendor"));
                     }
-                    if (customer.IsVendor() && string.IsNullOrEmpty(model.VendorId))
+                    if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.Vendors) && string.IsNullOrEmpty(model.VendorId))
                     {
                         ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInVendoRoleWithoutVendorAssociated"));
                     }
-                    if (customer.IsStaff() && string.IsNullOrEmpty(model.StaffStoreId))
+                    if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.Staff) && string.IsNullOrEmpty(model.StaffStoreId))
                     {
                         ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInStaffRoleWithoutStaffAssociated"));
+                    }
+                    if (newCustomerRoles.Any(x => x.SystemName == SystemCustomerRoleNames.SalesManager) && string.IsNullOrEmpty(model.SeId))
+                    {
+                        ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.CannotBeInSalesManagerRoleWithoutSalesEmployeeAssociated"));
                     }
                     if (customer.IsStaff() && customer.IsVendor())
                     {
@@ -363,12 +403,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("changepassword")]
         public async Task<IActionResult> ChangePassword(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -387,12 +428,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markVatNumberAsValid")]
         public async Task<IActionResult> MarkVatNumberAsValid(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -403,12 +445,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markVatNumberAsInvalid")]
         public async Task<IActionResult> MarkVatNumberAsInvalid(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -419,12 +462,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("remove-affiliate")]
         public async Task<IActionResult> RemoveAffiliate(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -433,13 +477,15 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
             var customer = await _customerService.GetCustomerById(id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
+
             if (customer.Id == _workContext.CurrentCustomer.Id)
             {
                 ErrorNotification(_localizationService.GetResource("Admin.Customers.Customers.NoSelfDelete"));
@@ -464,6 +510,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         public async Task<IActionResult> DeleteSelected(ICollection<string> selectedIds)
         {
             if (selectedIds != null)
@@ -474,12 +521,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(new { Result = true });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("impersonate")]
         public async Task<IActionResult> Impersonate(string id)
         {
             var customer = await _customerService.GetCustomerById(id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -497,12 +545,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Index", "Home", new { area = "" });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("send-welcome-message")]
         public async Task<IActionResult> SendWelcomeMessage(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -513,12 +562,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("resend-activation-message")]
         public async Task<IActionResult> ReSendActivationMessage(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -531,10 +581,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> SendEmail(CustomerModel model)
         {
             var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -561,50 +612,20 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", new { id = customer.Id });
         }
 
-        public async Task<IActionResult> SendPm(CustomerModel model, [FromServices] ForumSettings forumSettings)
-        {
-            var customer = await _customerService.GetCustomerById(model.Id);
-            if (customer == null)
-                //No customer found with the specified id
-                return RedirectToAction("List");
-
-            try
-            {
-                if (!forumSettings.AllowPrivateMessages)
-                    throw new GrandException("Private messages are disabled");
-                if (customer.IsGuest())
-                    throw new GrandException("Customer should be registered");
-                if (String.IsNullOrWhiteSpace(model.SendPm.Subject))
-                    throw new GrandException("PM subject is empty");
-                if (String.IsNullOrWhiteSpace(model.SendPm.Message))
-                    throw new GrandException("PM message is empty");
-
-                await _customerViewModelService.SendPM(customer, model.SendPm);
-
-                SuccessNotification(_localizationService.GetResource("Admin.Customers.Customers.SendPM.Sent"));
-            }
-            catch (Exception exc)
-            {
-                ErrorNotification(exc.Message);
-            }
-
-            return RedirectToAction("Edit", new { id = customer.Id });
-        }
-
         #endregion
 
         #region Reward points history
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> RewardPointsHistorySelect(string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id");
 
             var model = (await _customerViewModelService.PrepareRewardPointsHistoryModel(customerId)).ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = model,
                 Total = model.Count
             };
@@ -612,13 +633,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> RewardPointsHistoryAdd(string customerId, string storeId, int addRewardPointsValue, string addRewardPointsMessage)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 return Json(new { Result = false });
 
-            await _customerViewModelService.InsertRewardPointsHistory(customerId, storeId, addRewardPointsValue, addRewardPointsMessage);
+            await _customerViewModelService.InsertRewardPointsHistory(customer, storeId, addRewardPointsValue, addRewardPointsMessage);
 
             return Json(new { Result = true });
         }
@@ -627,16 +649,16 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Addresses
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> AddressesSelect(string customerId, DataSourceRequest command)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id", "customerId");
 
             var addresses = (await _customerViewModelService.PrepareAddressModel(customer)).ToList();
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = addresses,
                 Total = addresses.Count
             };
@@ -644,11 +666,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> AddressDelete(string id, string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id", "customerId");
 
             var address = customer.Addresses.FirstOrDefault(a => a.Id == id);
@@ -663,10 +686,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return ErrorForKendoGridJson(ModelState);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> AddressCreate(string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -676,12 +700,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
-
         public async Task<IActionResult> AddressCreate(CustomerAddressModel model, IFormCollection form)
         {
             var customer = await _customerService.GetCustomerById(model.CustomerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -705,10 +729,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> AddressEdit(string addressId, string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -722,12 +747,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
 
         public async Task<IActionResult> AddressEdit(CustomerAddressModel model, IFormCollection form)
         {
             var customer = await _customerService.GetCustomerById(model.CustomerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 //No customer found with the specified id
                 return RedirectToAction("List");
 
@@ -760,15 +786,68 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Orders
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
-        public async Task<IActionResult> OrderList(string customerId, DataSourceRequest command)
+        public async Task<IActionResult> OrderList(string customerId, DataSourceRequest command,
+            [FromServices] IOrderViewModelService orderViewModelService)
         {
-            var (orderModels, totalCount) = await _customerViewModelService.PrepareOrderModel(customerId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            if (!await _permissionService.Authorize(StandardPermissionProvider.ManageOrders))
+                return Json(new DataSourceResult {
+                    Data = null,
+                    Total = 0
+                });
+
+            var model = new OrderListModel {
+                CustomerId = customerId
+            };
+            if (_workContext.CurrentCustomer.IsStaff())
+                model.StoreId = _workContext.CurrentCustomer.StaffStoreId;
+            if (_workContext.CurrentVendor != null)
+                model.VendorId = _workContext.CurrentVendor.Id;
+
+            var (orderModels, aggregator, totalCount) = await orderViewModelService.PrepareOrderModel(model, command.Page, command.PageSize);
+            var gridModel = new DataSourceResult {
                 Data = orderModels.ToList(),
                 Total = totalCount
             };
+            return Json(gridModel);
+        }
+
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
+        [HttpPost]
+        public async Task<IActionResult> OrderDetails(string orderId,
+            [FromServices] IOrderService orderService, [FromServices] IOrderViewModelService orderViewModelService)
+        {
+            if (!await _permissionService.Authorize(StandardPermissionProvider.ManageOrders))
+                return Json(new DataSourceResult {
+                    Data = null,
+                    Total = 0
+                });
+
+            var order = await orderService.GetOrderById(orderId);
+            if (order == null)
+                throw new ArgumentException("No order found with the specified id");
+
+            //a vendor should have access only to his products
+            if (_workContext.CurrentVendor != null && !_workContext.HasAccessToOrder(order) && !_workContext.CurrentCustomer.IsStaff())
+                return Json(new DataSourceResult {
+                    Data = null,
+                    Total = 0
+                });
+
+            if (_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId)
+                return Json(new DataSourceResult {
+                    Data = null,
+                    Total = 0
+                });
+
+            var ordermodel = new OrderModel();
+            await orderViewModelService.PrepareOrderDetailsModel(ordermodel, order);
+            var gridModel = new DataSourceResult {
+                Data = ordermodel.Items,
+                Total = ordermodel.Items.Count
+            };
+
             return Json(gridModel);
         }
 
@@ -776,6 +855,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Reviews
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> ReviewList(string customerId, DataSourceRequest command)
         {
@@ -788,14 +868,14 @@ namespace Grand.Web.Areas.Admin.Controllers
                 await _productViewModelService.PrepareProductReviewModel(m, x, false, true);
                 items.Add(m);
             }
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = items,
                 Total = productReviews.TotalCount,
             };
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> ReviewDelete(string id)
         {
@@ -811,24 +891,38 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Current shopping cart/ wishlist
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> GetCartList(string customerId, int cartTypeId)
         {
             var cart = await _customerViewModelService.PrepareShoppingCartItemModel(customerId, cartTypeId);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = cart,
                 Total = cart.Count
             };
 
             return Json(gridModel);
         }
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
+        [HttpPost]
+        public async Task<IActionResult> UpdateCart(string id, string customerId, decimal? unitPriceValue)
+        {
+            var customer = await _customerService.GetCustomerById(customerId);
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
+                throw new ArgumentException("No customer found with the specified id", "customerId");
 
+            var warnings = await _customerViewModelService.UpdateCart(customer, id, unitPriceValue);
+            if (warnings.Any())
+                return ErrorForKendoGridJson(string.Join(",", warnings));
+
+            return new NullJsonResult();
+        }
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> DeleteCart(string id, string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id", "customerId");
 
             await _customerViewModelService.DeleteCart(customer, id);
@@ -839,12 +933,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Customer Product Personalize / Price
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> ProductsPrice(DataSourceRequest command, string customerId)
         {
             var (productPriceModels, totalCount) = await _customerViewModelService.PrepareProductPriceModel(customerId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = productPriceModels.ToList(),
                 Total = totalCount
             };
@@ -852,37 +946,40 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> PersonalizedProducts(DataSourceRequest command, string customerId)
         {
             var (productModels, totalCount) = await _customerViewModelService.PreparePersonalizedProducts(customerId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = productModels.ToList(),
                 Total = totalCount
             };
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> ProductAddPopup(string customerId)
         {
             var model = await _customerViewModelService.PrepareCustomerModelAddProductModel();
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> ProductAddPopupList(DataSourceRequest command, CustomerModel.AddProductModel model)
         {
             var products = await _customerViewModelService.PrepareProductModel(model, command.Page, command.PageSize);
 
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = products.products.ToList(),
                 Total = products.totalCount
             };
 
             return Json(gridModel);
         }
+
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         [FormValueRequired("save")]
         public async Task<IActionResult> ProductAddPopup(string customerId, bool personalized, CustomerModel.AddProductModel model)
@@ -895,23 +992,29 @@ namespace Grand.Web.Areas.Admin.Controllers
             ViewBag.RefreshPage = true;
             return View(model);
         }
+
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> UpdateProductPrice(CustomerModel.ProductPriceModel model)
         {
             await _customerViewModelService.UpdateProductPrice(model);
             return new NullJsonResult();
         }
+
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> DeleteProductPrice(string id)
         {
             await _customerViewModelService.DeleteProductPrice(id);
             return new NullJsonResult();
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> UpdatePersonalizedProduct(CustomerModel.ProductModel model)
         {
             await _customerViewModelService.UpdatePersonalizedProduct(model);
             return new NullJsonResult();
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> DeletePersonalizedProduct(string id)
         {
             await _customerViewModelService.DeletePersonalizedProduct(id);
@@ -922,12 +1025,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Activity log and message contact form
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> ListActivityLog(DataSourceRequest command, string customerId)
         {
             var (activityLogModels, totalCount) = await _customerViewModelService.PrepareActivityLogModel(customerId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = activityLogModels.ToList(),
                 Total = totalCount
             };
@@ -935,6 +1038,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> ContactFormList(DataSourceRequest command, string customerId)
         {
@@ -944,8 +1048,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 vendorId = _workContext.CurrentVendor.Id;
             }
             var (contactFormModels, totalCount) = await _customerViewModelService.PrepareContactFormModel(customerId, vendorId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = contactFormModels.ToList(),
                 Total = totalCount
             };
@@ -955,12 +1058,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Back in stock subscriptions
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> BackInStockSubscriptionList(DataSourceRequest command, string customerId)
         {
             var (backInStockSubscriptionModels, totalCount) = await _customerViewModelService.PrepareBackInStockSubscriptionModel(customerId, command.Page, command.PageSize);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = backInStockSubscriptionModels.ToList(),
                 Total = totalCount
             };
@@ -971,11 +1074,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Customer note
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost]
         public async Task<IActionResult> CustomerNotesSelect(string customerId, DataSourceRequest command)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id");
 
             //a vendor does not have access to this functionality
@@ -983,8 +1087,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 return Content("");
 
             var customerNoteModels = await _customerViewModelService.PrepareCustomerNoteList(customerId);
-            var gridModel = new DataSourceResult
-            {
+            var gridModel = new DataSourceResult {
                 Data = customerNoteModels,
                 Total = customerNoteModels.Count
             };
@@ -992,11 +1095,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
-
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> CustomerNoteAdd(string customerId, string downloadId, bool displayToCustomer, string title, string message)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 return Json(new { Result = false });
 
             //a vendor does not have access to this functionality
@@ -1008,11 +1111,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(new { Result = true });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> CustomerNoteDelete(string id, string customerId)
         {
             var customer = await _customerService.GetCustomerById(customerId);
-            if (customer == null)
+            if (customer == null || customer.Deleted || CheckSalesManager(customer))
                 throw new ArgumentException("No customer found with the specified id");
 
             //a vendor does not have access to this functionality
@@ -1029,12 +1133,17 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Export / Import
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("exportexcel-all")]
         public async Task<IActionResult> ExportExcelAll(CustomerListModel model)
         {
+            var salesEmployeeId =
+                _workContext.CurrentCustomer.IsSalesManager() ? _workContext.CurrentCustomer.SeId : "";
+
             var customers = await _customerService.GetAllCustomers(
                 customerRoleIds: model.SearchCustomerRoleIds.ToArray(),
+                salesEmployeeId: salesEmployeeId,
                 email: model.SearchEmail,
                 username: model.SearchUsername,
                 firstName: model.SearchFirstName,
@@ -1056,6 +1165,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> ExportExcelSelected(string selectedIds)
         {
@@ -1073,12 +1183,17 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "text/xls", "customers.xlsx");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("exportxml-all")]
         public async Task<IActionResult> ExportXmlAll(CustomerListModel model)
         {
+            var salesEmployeeId =
+                _workContext.CurrentCustomer.IsSalesManager() ? _workContext.CurrentCustomer.SeId : "";
+
             var customers = await _customerService.GetAllCustomers(
                 customerRoleIds: model.SearchCustomerRoleIds.ToArray(),
+                salesEmployeeId: salesEmployeeId,
                 email: model.SearchEmail,
                 username: model.SearchUsername,
                 firstName: model.SearchFirstName,
@@ -1100,6 +1215,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> ExportXmlSelected(string selectedIds)
         {

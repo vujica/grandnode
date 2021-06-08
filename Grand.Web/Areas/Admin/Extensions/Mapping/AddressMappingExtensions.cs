@@ -1,9 +1,12 @@
-﻿using Grand.Domain.Catalog;
+﻿using Grand.Core.Mapper;
+using Grand.Domain.Catalog;
 using Grand.Domain.Common;
 using Grand.Services.Common;
 using Grand.Services.Directory;
 using Grand.Web.Areas.Admin.Models.Common;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Grand.Web.Areas.Admin.Extensions
@@ -34,6 +37,7 @@ namespace Grand.Web.Areas.Admin.Extensions
         {
             return model.MapTo(destination);
         }
+
         public static async Task PrepareCustomAddressAttributes(this AddressModel model,
             Address address,
             IAddressAttributeService addressAttributeService,
@@ -72,14 +76,14 @@ namespace Grand.Web.Areas.Admin.Extensions
                 }
 
                 //set already selected attributes
-                var selectedAddressAttributes = address != null ? address.CustomAttributes : null;
+                var selectedAddressAttributes = address != null ? address.Attributes : new List<CustomAttribute>();
                 switch (attribute.AttributeControlType)
                 {
                     case AttributeControlType.DropdownList:
                     case AttributeControlType.RadioList:
                     case AttributeControlType.Checkboxes:
                         {
-                            if (!String.IsNullOrEmpty(selectedAddressAttributes))
+                            if (selectedAddressAttributes.Any())
                             {
                                 //clear default selection
                                 foreach (var item in attributeModel.Values)
@@ -104,9 +108,9 @@ namespace Grand.Web.Areas.Admin.Extensions
                     case AttributeControlType.TextBox:
                     case AttributeControlType.MultilineTextbox:
                         {
-                            if (!String.IsNullOrEmpty(selectedAddressAttributes))
+                            if (selectedAddressAttributes.Any())
                             {
-                                var enteredText = addressAttributeParser.ParseValues(selectedAddressAttributes, attribute.Id);
+                                var enteredText = selectedAddressAttributes.Where(x => x.Key == attribute.Id).Select(x => x.Value).ToList();
                                 if (enteredText.Count > 0)
                                     attributeModel.DefaultValue = enteredText[0];
                             }

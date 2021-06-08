@@ -1,7 +1,6 @@
 ﻿using Grand.Core;
 using Grand.Domain;
 using Grand.Domain.Catalog;
-using Grand.Domain.Forums;
 using Grand.Domain.Localization;
 using Grand.Domain.Seo;
 using Grand.Services.Localization;
@@ -34,58 +33,7 @@ namespace Grand.Services.Seo
         {
             if (productTag == null)
                 throw new ArgumentNullException("productTag");
-            string seName = GetSeName(productTag.GetLocalized(x => x.Name, languageId), false, false);
-            return seName;
-        }
-
-        #endregion
-
-        #region Forum
-
-        /// <summary>
-        /// Gets ForumGroup SE (search engine) name
-        /// </summary>
-        /// <param name="forumGroup">ForumGroup</param>
-        /// <returns>ForumGroup SE (search engine) name</returns>
-        public static string GetSeName(this ForumGroup forumGroup)
-        {
-            if (forumGroup == null)
-                throw new ArgumentNullException("forumGroup");
-            string seName = GetSeName(forumGroup.Name, false, false);
-            return seName;
-        }
-
-        /// <summary>
-        /// Gets Forum SE (search engine) name
-        /// </summary>
-        /// <param name="forum">Forum</param>
-        /// <returns>Forum SE (search engine) name</returns>
-        public static string GetSeName(this Forum forum)
-        {
-            if (forum == null)
-                throw new ArgumentNullException("forum");
-            string seName = GetSeName(forum.Name, false, false);
-            return seName;
-        }
-
-        /// <summary>
-        /// Gets ForumTopic SE (search engine) name
-        /// </summary>
-        /// <param name="forumTopic">ForumTopic</param>
-        /// <returns>ForumTopic SE (search engine) name</returns>
-        public static string GetSeName(this ForumTopic forumTopic)
-        {
-            if (forumTopic == null)
-                throw new ArgumentNullException("forumTopic");
-            string seName = GetSeName(forumTopic.Subject, false, false);
-
-            // Trim SE name to avoid URLs that are too long
-            var maxLength = 100;
-            if (seName.Length > maxLength)
-            {
-                seName = seName.Substring(0, maxLength);
-            }
-
+            var seName = GenerateSlug(productTag.GetLocalized(x => x.Name, languageId), false, false);
             return seName;
         }
 
@@ -100,21 +48,19 @@ namespace Grand.Services.Seo
         /// <param name="entity">Entity</param>
         /// <param name="languageId">Language identifier</param>
         /// <param name="returnDefaultValue">A value indicating whether to return default value (if language specified one is not found)</param>
-        /// <param name="ensureTwoPublishedLanguages">A value indicating whether to ensure that we have at least two published languages; otherwise, load only default value</param>
         /// <returns>Search engine  name (slug)</returns>
-        public static string GetSeName<T>(this T entity, string languageId, bool returnDefaultValue = true,
-            bool ensureTwoPublishedLanguages = true)
+        public static string GetSeName<T>(this T entity, string languageId, bool returnDefaultValue = true)
             where T : BaseEntity, ISlugSupported, ILocalizedEntity
         {
             if (entity == null)
                 throw new ArgumentNullException("entity");
 
-            string seName = string.Empty;
-            if (!String.IsNullOrEmpty(languageId))
+            var seName = string.Empty;
+            if (!string.IsNullOrEmpty(languageId))
             {
                 var value = entity.Locales.Where(x => x.LanguageId == languageId && x.LocaleKey == "SeName").FirstOrDefault();
                 if (value != null)
-                    if (!String.IsNullOrEmpty(value.LocaleValue))
+                    if (!string.IsNullOrEmpty(value.LocaleValue))
                         seName = value.LocaleValue;
             }
 
@@ -143,7 +89,7 @@ namespace Grand.Services.Seo
                 throw new ArgumentNullException("entity");
 
             //use name if sename is not specified
-            if (String.IsNullOrWhiteSpace(seName) && !String.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(seName) && !string.IsNullOrWhiteSpace(name))
                 seName = name;
 
             //validation
@@ -155,7 +101,7 @@ namespace Grand.Services.Seo
             //that's why we limit it to 200 here (consider a store URL + probably added {0}-{1} below)
             seName = CommonHelper.EnsureMaximumLength(seName, 200);
 
-            if (String.IsNullOrWhiteSpace(seName))
+            if (string.IsNullOrWhiteSpace(seName))
             {
                 if (ensureNotEmpty)
                 {
@@ -170,8 +116,8 @@ namespace Grand.Services.Seo
             }
 
             //ensure this sename is not reserved yet
-            string entityName = typeof(T).Name;
-            int i = 2;
+            var entityName = typeof(T).Name;
+            var i = 2;
             var tempSeName = seName;
             while (true)
             {
@@ -200,7 +146,7 @@ namespace Grand.Services.Seo
         /// <returns>Result</returns>
         public static string GetSeName(string name, SeoSettings seoSettings)
         {
-            return GetSeName(name, seoSettings.ConvertNonWesternChars, seoSettings.AllowUnicodeCharsInUrls, seoSettings.SeoCharConversion);
+            return GenerateSlug(name, seoSettings.ConvertNonWesternChars, seoSettings.AllowUnicodeCharsInUrls, seoSettings.SeoCharConversion);
         }
 
         /// <summary>
@@ -210,11 +156,12 @@ namespace Grand.Services.Seo
         /// <param name="convertNonWesternChars">A value indicating whether non western chars should be converted</param>
         /// <param name="allowUnicodeCharsInUrls">A value indicating whether Unicode chars are allowed</param>
         /// <returns>Result</returns>
-        public static string GetSeName(string name, bool convertNonWesternChars, bool allowUnicodeCharsInUrls, string charConversions = null)
+        public static string GenerateSlug(string name, bool convertNonWesternChars, bool allowUnicodeCharsInUrls, string charConversions = null)
         {
-            if (String.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty(name))
                 return name;
-            string okChars = "abcdefghijklmnopqrstuvwxyz1234567890 _-";
+
+            var okChars = "abcdefghijklmnopqrstuvwxyz1234567890 _-";
             name = name.Trim().ToLowerInvariant();
 
             if (convertNonWesternChars)
@@ -224,9 +171,9 @@ namespace Grand.Services.Seo
             }
 
             var sb = new StringBuilder();
-            foreach (char c in name.ToCharArray())
+            foreach (var c in name.ToCharArray())
             {
-                string c2 = c.ToString();
+                var c2 = c.ToString();
                 if (convertNonWesternChars && _seoCharacterTable != null)
                 {
                     if (_seoCharacterTable.ContainsKey(c2))
@@ -243,7 +190,7 @@ namespace Grand.Services.Seo
                     sb.Append(c2);
                 }
             }
-            string name2 = sb.ToString();
+            var name2 = sb.ToString();
             name2 = name2.Replace(" ", "-");
             while (name2.Contains("--"))
                 name2 = name2.Replace("--", "-");
@@ -264,7 +211,7 @@ namespace Grand.Services.Seo
                     {
                         var strLeft = conversion.Split(":").FirstOrDefault();
                         var strRight = conversion.Split(":").LastOrDefault();
-                        if (!string.IsNullOrEmpty(strLeft) &&  !_seoCharacterTable.ContainsKey(strLeft))
+                        if (!string.IsNullOrEmpty(strLeft) && !_seoCharacterTable.ContainsKey(strLeft))
                         {
                             _seoCharacterTable.Add(strLeft.Trim(), strRight.Trim());
                         }

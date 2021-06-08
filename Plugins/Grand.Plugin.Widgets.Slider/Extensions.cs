@@ -1,6 +1,7 @@
-﻿using Grand.Domain.Localization;
+﻿using Grand.Core.Mapper;
+using Grand.Core.Models;
+using Grand.Domain.Localization;
 using Grand.Domain.Stores;
-using Grand.Core.Infrastructure.Mapper;
 using Grand.Framework.Localization;
 using Grand.Framework.Mapping;
 using Grand.Framework.Mvc.Models;
@@ -17,16 +18,6 @@ namespace Grand.Plugin.Widgets.Slider
 {
     public static class MyExtensions
     {
-        public static TDestination MapTo<TSource, TDestination>(this TSource source)
-        {
-            return AutoMapperConfiguration.Mapper.Map<TSource, TDestination>(source);
-        }
-
-        public static TDestination MapTo<TSource, TDestination>(this TSource source, TDestination destination)
-        {
-            return AutoMapperConfiguration.Mapper.Map(source, destination);
-        }
-
         public static SlideModel ToModel(this PictureSlider entity)
         {
             return entity.MapTo<PictureSlider, SlideModel>();
@@ -36,7 +27,7 @@ namespace Grand.Plugin.Widgets.Slider
         {
             return model.MapTo<SlideModel, PictureSlider>();
         }
-       
+
 
         public static SlideListModel ToListModel(this PictureSlider entity)
         {
@@ -44,7 +35,7 @@ namespace Grand.Plugin.Widgets.Slider
         }
 
         public static async Task PrepareStoresMappingModel<T>(this T baseGrandEntityModel, IStoreMappingSupported storeMapping, bool excludeProperties, IStoreService _storeService)
-            where T : BaseGrandEntityModel, IStoreMappingModel
+            where T : BaseEntityModel, IStoreMappingModel
         {
             baseGrandEntityModel.AvailableStores = (await _storeService
                .GetAllStores())
@@ -78,8 +69,7 @@ namespace Grand.Plugin.Widgets.Slider
                     }
 
                     if (insert && prop.GetValue(item) != null)
-                        local.Add(new LocalizedProperty()
-                        {
+                        local.Add(new LocalizedProperty() {
                             LanguageId = item.LanguageId,
                             LocaleKey = prop.Name,
                             LocaleValue = prop.GetValue(item).ToString(),

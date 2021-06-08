@@ -1,54 +1,54 @@
-using Autofac;
 using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
-using Grand.Core.Infrastructure.DependencyManagement;
+using Grand.Core.DependencyInjection;
+using Grand.Core.TypeFinders;
 using Grand.Web.Areas.Admin.Interfaces;
 using Grand.Web.Areas.Admin.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Grand.Web.Areas.Admin.Infrastructure
 {
-    public class DependencyRegistrar : IDependencyRegistrar
+    public class DependencyInjection : IDependencyInjection
     {
-        public virtual void Register(ContainerBuilder builder, ITypeFinder typeFinder, GrandConfig config)
+        public virtual void Register(IServiceCollection serviceCollection, ITypeFinder typeFinder, GrandConfig config)
         {
-            builder.RegisterType<ActivityLogViewModelService>().As<IActivityLogViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<AddressAttributeViewModelService>().As<IAddressAttributeViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<AffiliateViewModelService>().As<IAffiliateViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<BlogViewModelService>().As<IBlogViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CampaignViewModelService>().As<ICampaignViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CategoryViewModelService>().As<ICategoryViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CheckoutAttributeViewModelService>().As<ICheckoutAttributeViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ContactAttributeViewModelService>().As<IContactAttributeViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ContactFormViewModelService>().As<IContactFormViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CountryViewModelService>().As<ICountryViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CourseViewModelService>().As<ICourseViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CurrencyViewModelService>().As<ICurrencyViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerActionViewModelService>().As<ICustomerActionViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerAttributeViewModelService>().As<ICustomerAttributeViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerViewModelService>().As<ICustomerViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerReminderViewModelService>().As<ICustomerReminderViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerRoleViewModelService>().As<ICustomerRoleViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<CustomerTagViewModelService>().As<ICustomerTagViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<DiscountViewModelService>().As<IDiscountViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<DocumentViewModelService>().As<IDocumentViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<EmailAccountViewModelService>().As<IEmailAccountViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<GiftCardViewModelService>().As<IGiftCardViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<KnowledgebaseViewModelService>().As<IKnowledgebaseViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<LanguageViewModelService>().As<ILanguageViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<LogViewModelService>().As<ILogViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ManufacturerViewModelService>().As<IManufacturerViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<NewsViewModelService>().As<INewsViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<OrderViewModelService>().As<IOrderViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ShipmentViewModelService>().As<IShipmentViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ProductReviewViewModelService>().As<IProductReviewViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ReturnRequestViewModelService>().As<IReturnRequestViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<VendorViewModelService>().As<IVendorViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<TopicViewModelService>().As<ITopicViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<StoreViewModelService>().As<IStoreViewModelService>().InstancePerLifetimeScope();
-            builder.RegisterType<ProductViewModelService>().As<IProductViewModelService>().InstancePerLifetimeScope();
+            serviceCollection.AddScoped<IActivityLogViewModelService, ActivityLogViewModelService>();
+            serviceCollection.AddScoped<IAddressAttributeViewModelService, AddressAttributeViewModelService>();
+            serviceCollection.AddScoped<IAffiliateViewModelService, AffiliateViewModelService>();
+            serviceCollection.AddScoped<IBlogViewModelService, BlogViewModelService>();
+            serviceCollection.AddScoped<ICampaignViewModelService, CampaignViewModelService>();
+            serviceCollection.AddScoped<ICategoryViewModelService, CategoryViewModelService>();
+            serviceCollection.AddScoped<ICheckoutAttributeViewModelService, CheckoutAttributeViewModelService>();
+            serviceCollection.AddScoped<IContactAttributeViewModelService, ContactAttributeViewModelService>();
+            serviceCollection.AddScoped<IContactFormViewModelService, ContactFormViewModelService>();
+            serviceCollection.AddScoped<ICountryViewModelService, CountryViewModelService>();
+            serviceCollection.AddScoped<ICourseViewModelService, CourseViewModelService>();
+            serviceCollection.AddScoped<ICurrencyViewModelService, CurrencyViewModelService>();
+            serviceCollection.AddScoped<ICustomerActionViewModelService, CustomerActionViewModelService>();
+            serviceCollection.AddScoped<ICustomerAttributeViewModelService, CustomerAttributeViewModelService>();
+            serviceCollection.AddScoped<ICustomerViewModelService, CustomerViewModelService>();
+            serviceCollection.AddScoped<ICustomerReportViewModelService, CustomerReportViewModelService>();
+            serviceCollection.AddScoped<ICustomerReminderViewModelService, CustomerReminderViewModelService>();
+            serviceCollection.AddScoped<ICustomerRoleViewModelService, CustomerRoleViewModelService>();
+            serviceCollection.AddScoped<ICustomerTagViewModelService, CustomerTagViewModelService>();
+            serviceCollection.AddScoped<IDiscountViewModelService, DiscountViewModelService>();
+            serviceCollection.AddScoped<IDocumentViewModelService, DocumentViewModelService>();
+            serviceCollection.AddScoped<IEmailAccountViewModelService, EmailAccountViewModelService>();
+            serviceCollection.AddScoped<IGiftCardViewModelService, GiftCardViewModelService>();
+            serviceCollection.AddScoped<IKnowledgebaseViewModelService, KnowledgebaseViewModelService>();
+            serviceCollection.AddScoped<ILanguageViewModelService, LanguageViewModelService>();
+            serviceCollection.AddScoped<ILogViewModelService, LogViewModelService>();
+            serviceCollection.AddScoped<IManufacturerViewModelService, ManufacturerViewModelService>();
+            serviceCollection.AddScoped<INewsViewModelService, NewsViewModelService>();
+            serviceCollection.AddScoped<IOrderViewModelService, OrderViewModelService>();
+            serviceCollection.AddScoped<IShipmentViewModelService, ShipmentViewModelService>();
+            serviceCollection.AddScoped<IProductReviewViewModelService, ProductReviewViewModelService>();
+            serviceCollection.AddScoped<IReturnRequestViewModelService, ReturnRequestViewModelService>();
+            serviceCollection.AddScoped<IVendorViewModelService, VendorViewModelService>();
+            serviceCollection.AddScoped<ITopicViewModelService, TopicViewModelService>();
+            serviceCollection.AddScoped<IStoreViewModelService, StoreViewModelService>();
+            serviceCollection.AddScoped<IProductViewModelService, ProductViewModelService>();
         }
-        public int Order
-        {
+        public int Order {
             get { return 3; }
         }
     }

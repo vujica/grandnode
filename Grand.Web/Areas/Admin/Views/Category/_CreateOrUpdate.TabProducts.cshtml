@@ -77,18 +77,18 @@
                 columns: [{
                     field: "ProductName",
                     title: "@T("Admin.Catalog.Categories.Products.Fields.Product")",
-                    template: '<a class="k-link" href="@Url.Content("~/Admin/Product/Edit/")#=ProductId#">#=kendo.htmlEncode(ProductName)#</a>',
+                    template: '<a class="k-link" href="@Url.Action("Edit", "Product")/#=ProductId#">#=kendo.htmlEncode(ProductName)#</a>',
                 }, {
                     field: "IsFeaturedProduct",
                     title: "@T("Admin.Catalog.Categories.Products.Fields.IsFeaturedProduct")",
                     headerAttributes: { style: "text-align:center" },
                     attributes: { style: "text-align:center" },
                     minScreenWidth: 750,
-                    width: 100,
+                    width: 175,
                     template: '# if(IsFeaturedProduct) {# <i class="fa fa-check" aria-hidden="true" style="color:green"></i> #} else {# <i class="fa fa-times" aria-hidden="true" style="color:red"></i> #} #'
                 }, {
                     field: "DisplayOrder",
-                    width: 120,
+                    width: 125,
                     headerAttributes: { style: "text-align:center" },
                     attributes: { style: "text-align:center" },
                     minScreenWidth: 750,

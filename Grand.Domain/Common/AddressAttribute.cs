@@ -48,11 +48,11 @@ namespace Grand.Domain.Common
         {
             get
             {
-                return (AttributeControlType)this.AttributeControlTypeId;
+                return (AttributeControlType)AttributeControlTypeId;
             }
             set
             {
-                this.AttributeControlTypeId = (int)value;
+                AttributeControlTypeId = (int)value;
             }
         }
         /// <summary>
@@ -60,7 +60,7 @@ namespace Grand.Domain.Common
         /// </summary>
         public virtual ICollection<AddressAttributeValue> AddressAttributeValues
         {
-            get { return _addressAttributeValues ?? (_addressAttributeValues = new List<AddressAttributeValue>()); }
+            get { return _addressAttributeValues ??= new List<AddressAttributeValue>(); }
             protected set { _addressAttributeValues = value; }
         }
     }

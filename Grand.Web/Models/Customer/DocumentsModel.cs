@@ -1,21 +1,23 @@
-﻿using Grand.Framework.Mvc.Models;
+﻿using Grand.Core.Models;
 using System;
 using System.Collections.Generic;
 
 namespace Grand.Web.Models.Customer
 {
-    public class DocumentsModel : BaseGrandModel
+    public class DocumentsModel : BaseModel
     {
         public DocumentsModel()
         {
             DocumentList = new List<Document>();
+            PagingContext = new DocumentPagingModel();
         }
 
         public List<Document> DocumentList { get; set; }
+        public DocumentPagingModel PagingContext { get; set; }
         public string CustomerId { get; set; }
     }
 
-    public class Document: BaseGrandEntityModel
+    public class Document: BaseEntityModel
     {
         public string Number { get; set; }
         public string Name { get; set; }

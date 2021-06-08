@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace Grand.Web.Areas.Admin.Components
 {
-    public class AffiliateViewComponent : BaseViewComponent
+    public class AffiliateViewComponent : BaseAdminViewComponent
     {
         private readonly ILocalizationService _localizationService;
         private readonly IPermissionService _permissionService;
@@ -25,7 +25,7 @@ namespace Grand.Web.Areas.Admin.Components
             _permissionService = permissionService;
         }
 
-        public async Task<IViewComponentResult> InvokeAsync(string affiliateId)//original Action name: AffiliatedOrderList
+        public async Task<IViewComponentResult> InvokeAsync(string affiliateId)
         {
             if (!await _permissionService.Authorize(StandardPermissionProvider.ManageAffiliates))
                 return Content("");

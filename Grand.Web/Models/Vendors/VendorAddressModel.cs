@@ -1,15 +1,12 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Validators.Common;
+﻿using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Grand.Web.Models.Vendors
 {
-    [Validator(typeof(VendorAddressValidator))]
-    public partial class VendorAddressModel : BaseGrandEntityModel
+    public partial class VendorAddressModel : BaseEntityModel
     {
         public VendorAddressModel()
         {

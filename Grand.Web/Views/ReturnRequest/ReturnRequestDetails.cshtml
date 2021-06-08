@@ -1,13 +1,14 @@
 ﻿@model ReturnRequestDetailsModel
 @using Grand.Web.Models.Orders
+@inject IPageHeadBuilder pagebuilder
 @{
     Layout = "_ColumnsTwo";
 
     //title
-    Html.AddTitleParts(T("PageTitle.ReturnRequestDetails").Text);
+    pagebuilder.AddTitleParts(T("PageTitle.ReturnRequestDetails").Text);
 }
 @section left
-    {
+{
     @await Component.InvokeAsync("CustomerNavigation", new { selectedTabId = CustomerNavigationEnum.ReturnRequests })
 }
 <div class="page account-page pl-lg-3">
@@ -84,7 +85,7 @@
             {
                 <div class="comments">
                     <label>@T("Account.CustomerReturnRequests.Comments"): </label>
-                    <div>@Html.Raw(Grand.Core.Html.HtmlHelper.FormatText(Model.Comments, false, true, false, false, false, false))</div>
+                    <div>@Model.Comments</div>
                 </div>
             }
 
@@ -192,7 +193,7 @@
             {
                 <div class="returnrequest-notes">
                     <h5>
-                       @T("ReturnRequests.Notes")
+                        @T("ReturnRequests.Notes")
                     </h5>
                     <div class="table-responsive">
                         <table class="table table-hover data-table">

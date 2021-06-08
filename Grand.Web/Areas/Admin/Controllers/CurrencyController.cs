@@ -1,4 +1,5 @@
 ﻿using Grand.Core;
+using Grand.Core.Caching;
 using Grand.Domain.Directory;
 using Grand.Framework.Controllers;
 using Grand.Framework.Kendoui;
@@ -37,6 +38,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly ILocalizationService _localizationService;
         private readonly ILanguageService _languageService;
         private readonly IStoreService _storeService;
+        private readonly ICacheBase _cacheBase;
 
         #endregion
 
@@ -47,7 +49,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             CurrencySettings currencySettings, ISettingService settingService,
             IDateTimeHelper dateTimeHelper, ILocalizationService localizationService,
             ILanguageService languageService,
-            IStoreService storeService)
+            IStoreService storeService,
+            ICacheBase cacheBase)
         {
             _currencyService = currencyService;
             _currencyViewModelService = currencyViewModelService;
@@ -57,14 +60,21 @@ namespace Grand.Web.Areas.Admin.Controllers
             _localizationService = localizationService;
             _languageService = languageService;
             _storeService = storeService;
+            _cacheBase = cacheBase;
         }
-        
+
         #endregion
-        
+
         #region Methods
+
+        protected async Task ClearCache()
+        {
+            await _cacheBase.Clear();
+        }
 
         public IActionResult Index() => RedirectToAction("List");
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         public async Task<IActionResult> List(bool liveRates = false)
         {
             if (liveRates)
@@ -99,6 +109,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         [HttpPost]
         [FormValueRequired("save")]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> List(IFormCollection formValues)
         {
             _currencySettings.ActiveExchangeRateProviderSystemName = formValues["exchangeRateProvider"];
@@ -108,6 +119,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         public async Task<IActionResult> ListGrid(DataSourceRequest command)
         {
             var currenciesModel = (await _currencyService.GetAllCurrencies(true)).Select(x => x.ToModel()).ToList();
@@ -125,6 +137,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> ApplyRate(string currencyCode, string rate)
         {
             var _rate = decimal.Parse(rate, CultureInfo.InvariantCulture.NumberFormat);
@@ -139,19 +152,28 @@ namespace Grand.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> MarkAsPrimaryExchangeRateCurrency(string id)
         {
             _currencySettings.PrimaryExchangeRateCurrencyId = id;
             await _settingService.SaveSetting(_currencySettings);
 
+            //now clear cache
+            await ClearCache();
+
             return Json(new { result = true });
         }
 
         [HttpPost]
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> MarkAsPrimaryStoreCurrency(string id)
         {
             _currencySettings.PrimaryStoreCurrencyId = id;
             await _settingService.SaveSetting(_currencySettings);
+
+            //now clear cache
+            await ClearCache();
+
             return Json(new { result = true });
         }
 
@@ -159,6 +181,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Create / Edit / Delete
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = _currencyViewModelService.PrepareCurrencyModel();
@@ -170,6 +193,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> Create(CurrencyModel model, bool continueEditing)
         {
@@ -186,7 +210,8 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             return View(model);
         }
-        
+
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var currency = await _currencyService.GetCurrencyById(id);
@@ -207,6 +232,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> Edit(CurrencyModel model, bool continueEditing)
         {
@@ -243,7 +269,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             await model.PrepareStoresMappingModel(currency, _storeService, true);
             return View(model);
         }
-        
+
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {

@@ -3,6 +3,7 @@ using Grand.Framework.Kendoui;
 using Grand.Framework.Mvc.Filters;
 using Grand.Framework.Security.Authorization;
 using Grand.Services.Customers;
+using Grand.Services.Helpers;
 using Grand.Services.Localization;
 using Grand.Services.Security;
 using Grand.Services.Seo;
@@ -21,6 +22,7 @@ namespace Grand.Web.Areas.Admin.Controllers
     public partial class TopicController : BaseAdminController
     {
         #region Fields
+
         private readonly ITopicViewModelService _topicViewModelService;
         private readonly ITopicService _topicService;
         private readonly ILanguageService _languageService;
@@ -28,6 +30,8 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IStoreService _storeService;
         private readonly ICustomerService _customerService;
         private readonly IWorkContext _workContext;
+        private readonly IDateTimeHelper _dateTimeHelper;
+
         #endregion Fields
 
         #region Constructors
@@ -39,7 +43,8 @@ namespace Grand.Web.Areas.Admin.Controllers
             ILocalizationService localizationService,
             IStoreService storeService,
             ICustomerService customerService,
-            IWorkContext workContext)
+            IWorkContext workContext,
+            IDateTimeHelper dateTimeHelper)
         {
             _topicViewModelService = topicViewModelService;
             _topicService = topicService;
@@ -48,6 +53,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             _storeService = storeService;
             _customerService = customerService;
             _workContext = workContext;
+            _dateTimeHelper = dateTimeHelper;
         }
 
         #endregion
@@ -62,11 +68,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> List(DataSourceRequest command, TopicListModel model)
         {
             var topicModels = (await _topicService.GetAllTopics(model.SearchStoreId, true))
-                .Select(x => x.ToModel())
+                .Select(x => x.ToModel(_dateTimeHelper))
                 .ToList();
 
             if (!string.IsNullOrEmpty(model.Name))
@@ -92,6 +99,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Create / Edit / Delete
 
+        [PermissionAuthorizeAction(PermissionActionName.Create)]
         public async Task<IActionResult> Create()
         {
             var model = new TopicModel();
@@ -109,6 +117,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> Create(TopicModel model, bool continueEditing)
         {
@@ -129,6 +138,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var topic = await _topicService.GetTopicById(id);
@@ -136,7 +146,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 //No topic found with the specified id
                 return RedirectToAction("List");
 
-            var model = topic.ToModel();
+            var model = topic.ToModel(_dateTimeHelper);
             model.Url = Url.RouteUrl("Topic", new { SeName = topic.GetSeName(_workContext.WorkingLanguage.Id) }, "http");
             //templates
             await _topicViewModelService.PrepareTemplatesModel(model);
@@ -152,14 +162,19 @@ namespace Grand.Web.Areas.Admin.Controllers
                 locale.MetaKeywords = topic.GetLocalized(x => x.MetaKeywords, languageId, false, false);
                 locale.MetaDescription = topic.GetLocalized(x => x.MetaDescription, languageId, false, false);
                 locale.MetaTitle = topic.GetLocalized(x => x.MetaTitle, languageId, false, false);
-                locale.SeName = topic.GetSeName(languageId, false, false);
+                locale.SeName = topic.GetSeName(languageId, false);
             });
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
         public async Task<IActionResult> Edit(TopicModel model, bool continueEditing)
         {
+            if (model.StartDateUtc.HasValue && model.EndDateUtc.HasValue && model.StartDateUtc >= model.EndDateUtc)
+            {
+                ModelState.AddModelError(nameof(model.StartDateUtc), "Start Date cannot be later than End Date");
+            }
             var topic = await _topicService.GetTopicById(model.Id);
             if (topic == null)
                 //No topic found with the specified id
@@ -190,6 +205,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {

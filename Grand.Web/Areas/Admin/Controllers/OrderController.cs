@@ -44,6 +44,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         private readonly IPdfService _pdfService;
         private readonly IExportManager _exportManager;
         private readonly IMediator _mediator;
+
         #endregion
 
         #region Ctor
@@ -70,6 +71,16 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #endregion
 
+        #region Utilities
+
+        protected virtual bool CheckSalesManager(Order order)
+        {
+            return (_workContext.CurrentCustomer.IsSalesManager()
+                && (_workContext.CurrentCustomer.SeId != order.SeId));
+        }
+
+        #endregion
+
         #region Order list
 
         public IActionResult Index() => RedirectToAction("List");
@@ -90,7 +101,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             var storeId = string.Empty;
             if (_workContext.CurrentCustomer.IsStaff())
                 storeId = _workContext.CurrentCustomer.StaffStoreId;
-            
+
             string vendorId = string.Empty;
             //a vendor should have access only to his products
             if (_workContext.CurrentVendor != null)
@@ -116,6 +127,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(result);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> OrderList(DataSourceRequest command, OrderListModel model)
         {
@@ -140,6 +152,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("go-to-order-by-number")]
         public async Task<IActionResult> GoToOrderId(OrderListModel model)
@@ -159,7 +172,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             {
                 order = orders.FirstOrDefault();
             }
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 return RedirectToAction("List");
 
             if (_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId)
@@ -174,6 +187,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Export / Import
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("exportxml-all")]
         public async Task<IActionResult> ExportXmlAll(OrderListModel model)
@@ -200,6 +214,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> ExportXmlSelected(string selectedIds)
         {
@@ -224,6 +239,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(Encoding.UTF8.GetBytes(xml), "application/xml", "orders.xml");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("exportexcel-all")]
         public async Task<IActionResult> ExportExcelAll(OrderListModel model)
@@ -251,6 +267,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> ExportExcelSelected(string selectedIds)
         {
@@ -281,12 +298,13 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Payments and other order workflow
 
+        [PermissionAuthorizeAction(PermissionActionName.Cancel)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("cancelorder")]
         public async Task<IActionResult> CancelOrder(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -317,12 +335,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("captureorder")]
         public async Task<IActionResult> CaptureOrder(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -356,12 +375,50 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
+        [HttpPost, ActionName("Edit")]
+        [FormValueRequired("btnSaveOrderTags")]
+        public async Task<IActionResult> SaveOrderTags(OrderModel orderModel)
+        {
+            var order = await _orderService.GetOrderById(orderModel.Id);
+            if (order == null || CheckSalesManager(order))
+                //No order found with the specified id
+                return RedirectToAction("List");
+
+            //a vendor does not have access to this functionality
+            if (_workContext.CurrentVendor != null && !_workContext.CurrentCustomer.IsStaff())
+                return RedirectToAction("Edit", "Order", new { id = order.Id });
+
+            if (_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId)
+            {
+                return RedirectToAction("List");
+            }
+
+            try
+            {
+                await _orderViewModelService.SaveOrderTags(order, orderModel.OrderTags);
+                await _orderViewModelService.LogEditOrder(order.Id);
+                var model = new OrderModel();
+                await _orderViewModelService.PrepareOrderDetailsModel(model, order);
+                return View(model);
+            }
+            catch (Exception exception)
+            {
+                //error
+                var model = new OrderModel();
+                await _orderViewModelService.PrepareOrderDetailsModel(model, order);
+                ErrorNotification(exception, false);
+                return View(model);
+            }
+        }
+
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("markorderaspaid")]
         public async Task<IActionResult> MarkOrderAsPaid(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -392,12 +449,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("refundorder")]
         public async Task<IActionResult> RefundOrder(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -430,12 +488,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("refundorderoffline")]
         public async Task<IActionResult> RefundOrderOffline(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -466,12 +525,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("voidorder")]
         public async Task<IActionResult> VoidOrder(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -504,12 +564,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("voidorderoffline")]
         public async Task<IActionResult> VoidOrderOffline(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -540,10 +601,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         public async Task<IActionResult> PartiallyRefundOrderPopup(string id, bool online)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -562,12 +624,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost]
         [FormValueRequired("partialrefundorder")]
         public async Task<IActionResult> PartiallyRefundOrderPopup(string id, bool online, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -619,12 +682,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveOrderStatus")]
         public async Task<IActionResult> ChangeOrderStatus(string id, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -669,10 +733,11 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Edit, delete
 
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
         public async Task<IActionResult> Edit(string id)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null || order.Deleted)
+            if (order == null || order.Deleted || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -691,11 +756,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> Delete(string id, [FromServices] ICustomerActivityService customerActivityService)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -713,6 +779,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return RedirectToAction("Edit", "Order", new { id = id });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> DeleteSelected(ICollection<string> selectedIds, [FromServices] ICustomerActivityService customerActivityService)
         {
@@ -726,8 +793,11 @@ namespace Grand.Web.Areas.Admin.Controllers
                 for (var i = 0; i < orders.Count; i++)
                 {
                     var order = orders[i];
-                    await _orderService.DeleteOrder(order);
-                    await customerActivityService.InsertActivity("DeleteOrder", order.Id, _localizationService.GetResource("ActivityLog.DeleteOrder"), order.Id);
+                    if (CheckSalesManager(order))
+                    {
+                        await _orderService.DeleteOrder(order);
+                        await customerActivityService.InsertActivity("DeleteOrder", order.Id, _localizationService.GetResource("ActivityLog.DeleteOrder"), order.Id);
+                    }
                 }
             }
 
@@ -745,7 +815,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
 
             var order = await _orderService.GetOrderById(orderId);
-            if (_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId)
+            if ((_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId) || CheckSalesManager(order))
             {
                 return RedirectToAction("List");
             }
@@ -763,6 +833,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", string.Format("order_{0}.pdf", order.Id));
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost, ActionName("List")]
         [FormValueRequired("pdf-invoice-all")]
         public async Task<IActionResult> PdfInvoiceAll(OrderListModel model)
@@ -788,6 +859,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", "orders.pdf");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Export)]
         [HttpPost]
         public async Task<IActionResult> PdfInvoiceSelected(string selectedIds)
         {
@@ -828,12 +900,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return File(bytes, "application/pdf", "orders.pdf");
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Payments)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveCC")]
         public async Task<IActionResult> EditCreditCardInfo(string id, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -863,12 +936,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("btnSaveOrderTotals")]
         public async Task<IActionResult> EditOrderTotals(string id, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -888,8 +962,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             order.OrderShippingInclTax = model.OrderShippingInclTaxValue;
             order.OrderShippingExclTax = model.OrderShippingExclTaxValue;
             order.PaymentMethodAdditionalFeeInclTax = model.PaymentMethodAdditionalFeeInclTaxValue;
-            order.PaymentMethodAdditionalFeeExclTax = model.PaymentMethodAdditionalFeeExclTaxValue;
-            order.TaxRates = model.TaxRatesValue;
+            order.PaymentMethodAdditionalFeeExclTax = model.PaymentMethodAdditionalFeeExclTaxValue;            
             order.OrderTax = model.TaxValue;
             order.OrderDiscount = model.OrderTotalDiscountValue;
             order.OrderTotal = model.OrderTotalValue;
@@ -909,12 +982,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired("save-shipping-method")]
         public async Task<IActionResult> EditShippingMethod(string id, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -951,7 +1025,7 @@ namespace Grand.Web.Areas.Admin.Controllers
         public async Task<IActionResult> EditGenericAttributes(string id, OrderModel model)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -977,13 +1051,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
-
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnSaveOrderItem")]
-        public async Task<IActionResult> EditOrderItem(string id, IFormCollection form, [FromServices] IProductService productService)
+        public async Task<IActionResult> EditOrderItem(string id, IFormCollection form, 
+            [FromServices] IProductService productService, [FromServices] IInventoryManageService inventoryManageService)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1036,13 +1111,13 @@ namespace Grand.Web.Areas.Admin.Controllers
                 orderItem.PriceExclTax = priceExclTax;
                 await _orderService.UpdateOrder(order);
                 //adjust inventory
-                await productService.AdjustInventory(product, qtyDifference, orderItem.AttributesXml, orderItem.WarehouseId);
+                await inventoryManageService.AdjustInventory(product, qtyDifference, orderItem.Attributes, orderItem.WarehouseId);
 
             }
             else
             {
                 //adjust inventory
-                await productService.AdjustInventory(product, orderItem.Quantity, orderItem.AttributesXml, orderItem.WarehouseId);
+                await inventoryManageService.AdjustInventory(product, orderItem.Quantity, orderItem.Attributes, orderItem.WarehouseId);
                 await _orderService.DeleteOrderItem(orderItem);
             }
 
@@ -1065,15 +1140,17 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnDeleteOrderItem")]
         public async Task<IActionResult> DeleteOrderItem(string id, IFormCollection form,
             [FromServices] IGiftCardService giftCardService,
             [FromServices] IProductService productService,
+            [FromServices] IInventoryManageService inventoryManageService,
             [FromServices] IShipmentService shipmentService)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1138,7 +1215,7 @@ namespace Grand.Web.Areas.Admin.Controllers
 
                 //adjust inventory
                 if (product != null)
-                    await productService.AdjustInventory(product, orderItem.Quantity, orderItem.AttributesXml, orderItem.WarehouseId);
+                    await inventoryManageService.AdjustInventory(product, orderItem.Quantity, orderItem.Attributes, orderItem.WarehouseId);
 
                 await _orderService.DeleteOrderItem(orderItem);
                 order = await _orderService.GetOrderById(id);
@@ -1153,12 +1230,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnResetDownloadCount")]
         public async Task<IActionResult> ResetDownloadCount(string id, IFormCollection form)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1194,13 +1272,14 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("Edit")]
         [FormValueRequired(FormValueRequirement.StartsWith, "btnPvActivateDownload")]
 
         public async Task<IActionResult> ActivateDownloadItem(string id, IFormCollection form)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1235,10 +1314,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> UploadLicenseFilePopup(string id, string orderItemId, [FromServices] IProductService productService)
         {
             var order = await _orderService.GetOrderById(id);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1269,12 +1349,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         [FormValueRequired("uploadlicense")]
         public async Task<IActionResult> UploadLicenseFilePopup(OrderModel.UploadLicenseModel model)
         {
             var order = await _orderService.GetOrderById(model.OrderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1305,12 +1386,13 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost, ActionName("UploadLicenseFilePopup")]
         [FormValueRequired("deletelicense")]
         public async Task<IActionResult> DeleteLicenseFilePopup(OrderModel.UploadLicenseModel model)
         {
             var order = await _orderService.GetOrderById(model.OrderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1338,6 +1420,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> AddProductToOrder(string orderId)
         {
             //a vendor does not have access to this functionality
@@ -1345,7 +1428,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 return RedirectToAction("Edit", "Order", new { id = orderId });
 
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1353,6 +1436,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> AddProductToOrder(DataSourceRequest command, OrderModel.AddOrderProductModel model, [FromServices] IProductService productService)
         {
@@ -1394,6 +1478,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> AddProductToOrderDetails(string orderId, string productId)
         {
             //a vendor does not have access to this functionality
@@ -1401,7 +1486,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 return RedirectToAction("Edit", "Order", new { id = orderId });
 
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 return RedirectToAction("List");
 
             if (order == null)
@@ -1416,6 +1501,7 @@ namespace Grand.Web.Areas.Admin.Controllers
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> AddProductToOrderDetails(string orderId, string productId, IFormCollection form)
         {
@@ -1424,7 +1510,7 @@ namespace Grand.Web.Areas.Admin.Controllers
                 return RedirectToAction("Edit", "Order", new { id = orderId });
 
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 return RedirectToAction("List");
 
             if (_workContext.CurrentCustomer.IsStaff() && order.StoreId != _workContext.CurrentCustomer.StaffStoreId)
@@ -1448,10 +1534,12 @@ namespace Grand.Web.Areas.Admin.Controllers
         #endregion
 
         #region Addresses
-        public async Task<IActionResult> AddressEdit(string addressId, string orderId)
+
+        [PermissionAuthorizeAction(PermissionActionName.Preview)]
+        public async Task<IActionResult> AddressEdit(string addressId, string orderId, bool billingAddress)
         {
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1465,10 +1553,10 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
 
             var address = new Address();
-            if (order.BillingAddress != null)
+            if(billingAddress && order.BillingAddress != null)
                 if (order.BillingAddress.Id == addressId)
                     address = order.BillingAddress;
-            if (order.ShippingAddress != null)
+            if (!billingAddress && order.ShippingAddress != null)
                 if (order.ShippingAddress.Id == addressId)
                     address = order.ShippingAddress;
 
@@ -1476,16 +1564,18 @@ namespace Grand.Web.Areas.Admin.Controllers
                 throw new ArgumentException("No address found with the specified id", "addressId");
 
             var model = await _orderViewModelService.PrepareOrderAddressModel(order, address);
+            model.BillingAddress = billingAddress;
             return View(model);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         [HttpPost]
         public async Task<IActionResult> AddressEdit(OrderAddressModel model, IFormCollection form,
             [FromServices] IAddressAttributeService addressAttributeService,
             [FromServices] IAddressAttributeParser addressAttributeParser)
         {
             var order = await _orderService.GetOrderById(model.OrderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 //No order found with the specified id
                 return RedirectToAction("List");
 
@@ -1499,10 +1589,10 @@ namespace Grand.Web.Areas.Admin.Controllers
             }
 
             var address = new Address();
-            if (order.BillingAddress != null)
+            if (model.BillingAddress &&  order.BillingAddress != null)
                 if (order.BillingAddress.Id == model.Address.Id)
                     address = order.BillingAddress;
-            if (order.ShippingAddress != null)
+            if (!model.BillingAddress && order.ShippingAddress != null)
                 if (order.ShippingAddress.Id == model.Address.Id)
                     address = order.ShippingAddress;
 
@@ -1519,13 +1609,13 @@ namespace Grand.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                address = await _orderViewModelService.UpdateOrderAddress(order, address, model, customAttributes);
-                return RedirectToAction("AddressEdit", new { addressId = model.Address.Id, orderId = model.OrderId });
+                await _orderViewModelService.UpdateOrderAddress(order, address, model, customAttributes);
+                return RedirectToAction("AddressEdit", new { addressId = model.Address.Id, orderId = model.OrderId, BillingAddress = model.BillingAddress });
             }
 
             //If we got this far, something failed, redisplay form
             model = await _orderViewModelService.PrepareOrderAddressModel(order, address);
-
+            model.BillingAddress = model.BillingAddress;
             return View(model);
         }
 
@@ -1533,11 +1623,12 @@ namespace Grand.Web.Areas.Admin.Controllers
 
         #region Order notes
 
+        [PermissionAuthorizeAction(PermissionActionName.List)]
         [HttpPost]
         public async Task<IActionResult> OrderNotesSelect(string orderId, DataSourceRequest command)
         {
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 throw new ArgumentException("No order found with the specified id");
 
             //a vendor does not have access to this functionality
@@ -1557,10 +1648,11 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(gridModel);
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Edit)]
         public async Task<IActionResult> OrderNoteAdd(string orderId, string downloadId, bool displayToCustomer, string message)
         {
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 return Json(new { Result = false });
 
             //a vendor does not have access to this functionality
@@ -1576,11 +1668,12 @@ namespace Grand.Web.Areas.Admin.Controllers
             return Json(new { Result = true });
         }
 
+        [PermissionAuthorizeAction(PermissionActionName.Delete)]
         [HttpPost]
         public async Task<IActionResult> OrderNoteDelete(string id, string orderId)
         {
             var order = await _orderService.GetOrderById(orderId);
-            if (order == null)
+            if (order == null || CheckSalesManager(order))
                 throw new ArgumentException("No order found with the specified id");
 
             //a vendor does not have access to this functionality

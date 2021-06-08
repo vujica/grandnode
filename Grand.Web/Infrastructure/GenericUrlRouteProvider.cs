@@ -1,12 +1,10 @@
 ﻿using Grand.Core.Configuration;
 using Grand.Core.Data;
-using Grand.Domain.Localization;
+using Grand.Core.Routing;
 using Grand.Framework.Mvc.Routing;
-using Grand.Services.Localization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using System.Linq;
 
 namespace Grand.Web.Infrastructure
 {
@@ -20,12 +18,12 @@ namespace Grand.Web.Infrastructure
                 var config = routeBuilder.ServiceProvider.GetRequiredService<GrandConfig>();
                 if (config.SeoFriendlyUrlsForLanguagesEnabled)
                 {
-                    pattern = $"{{language:lang={config.SeoFriendlyUrlsDefaultCode}}}/{{SeName}}";
+                    pattern = $"{{language:lang={config.SeoFriendlyUrlsDefaultCode}}}/{{**SeName}}";
                 }
 
             }
             routeBuilder.MapDynamicControllerRoute<SlugRouteTransformer>(pattern);
-
+            
             //and default one
             routeBuilder.MapControllerRoute(
                 name: "Default",
@@ -87,6 +85,7 @@ namespace Grand.Web.Infrastructure
                 name: "Course",
                 pattern: pattern,
                 new { controller = "Course", action = "Details" });
+            
         }
 
         public int Priority {

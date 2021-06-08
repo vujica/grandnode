@@ -1,16 +1,17 @@
 ﻿using AutoMapper;
 using Grand.Domain.Catalog;
-using Grand.Core.Infrastructure.Mapper;
+using Grand.Core.Mapper;
 using Grand.Web.Areas.Admin.Models.Catalog;
 
 namespace Grand.Web.Areas.Admin.Infrastructure.Mapper.Profiles
 {
-    public class ProductAttributeCombinationProfile : Profile, IMapperProfile
+    public class ProductAttributeCombinationProfile : Profile, IAutoMapperProfile
     {
         public ProductAttributeCombinationProfile()
         {
             CreateMap<ProductAttributeCombination, ProductAttributeCombinationModel>()
                 .ForMember(dest => dest.UseMultipleWarehouses, mo => mo.Ignore())
+                .ForMember(dest => dest.PrimaryStoreCurrencyCode, mo => mo.Ignore())
                 .ForMember(dest => dest.WarehouseInventoryModels, mo => mo.Ignore());
             CreateMap<ProductAttributeCombinationModel, ProductAttributeCombination>()
                 .ForMember(dest => dest.WarehouseInventory, mo => mo.Ignore())

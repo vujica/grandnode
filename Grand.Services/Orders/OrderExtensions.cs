@@ -1,6 +1,6 @@
 ﻿using Grand.Domain.Orders;
-using Grand.Core.Html;
 using Grand.Services.Catalog;
+using Grand.Services.Common;
 using Grand.Services.Shipping;
 using System;
 using System.Linq;
@@ -20,17 +20,10 @@ namespace Grand.Services.Orders
             if (orderNote == null)
                 throw new ArgumentNullException("orderNote");
 
-            string text = orderNote.Note;
-
-            if (String.IsNullOrEmpty(text))
-                return string.Empty;
-
-            text = HtmlHelper.FormatText(text, false, true, false, false, false, false);
-
-            return text;
+            return FormatText.ConvertText(orderNote.Note);
         }
 
-        
+
         /// <summary>
         /// Gets a total number of items in all shipments
         /// </summary>
@@ -135,7 +128,7 @@ namespace Grand.Services.Orders
                     result += si.Quantity;
                 }
             }
-            
+
             return result;
         }
 
@@ -249,6 +242,21 @@ namespace Grand.Services.Orders
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Indicates whether a order's tag exists
+        /// </summary>
+        /// <param name="order">Order</param>
+        /// <param name="orderTagId">Order tag identifier</param>
+        /// <returns>Result</returns>
+        public static bool OrderTagExists(this Order order, OrderTag orderTag)
+        {
+            if (order == null)
+                throw new ArgumentNullException("order");
+
+            bool result = order.OrderTags.FirstOrDefault(t => t == orderTag.Id) != null;
+            return result;
         }
     }
 }

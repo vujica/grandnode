@@ -1,12 +1,12 @@
 ﻿@model DiscountModel.AddVendorToDiscountModel
 @inject AdminAreaSettings adminAreaSettings
 @{
-    Layout = "~/Areas/Admin/Views/Shared/_AdminPopupLayout.cshtml";
+    Layout = Grand.Web.Areas.Admin.Extensions.Constants.Layout_AdminPopup;
     //page title
     ViewBag.Title = T("Admin.Promotions.Discounts.AppliedToVendors.AddNew").Text;
 }
 
-<form asp-area="Admin" asp-controller="Discount" asp-action="VendorAddPopup" method="post"
+<form asp-area="@Constants.AreaAdmin" asp-controller="Discount" asp-action="VendorAddPopup" method="post"
       asp-route-DiscountId="@Context.Request.Query["DiscountId"]"
       asp-route-btnId="@Context.Request.Query["btnId"]"
       asp-route-formId="@Context.Request.Query["formId"]">
@@ -38,7 +38,7 @@
                             </div>
                             <div class="form-actions">
                                 <div class="row">
-                                    <div class="col-md-offset-1 col-md-11 col-sm-11 btn-group btn-group-devided">
+                                    <div class="offset-md-1 col-md-11 col-sm-11 btn-group btn-group-devided">
                                         <button class="btn btn-success filter-submit" id="search-vendors">
                                             <i class="fa fa-search"></i> @T("Admin.Common.Search")
                                         </button>

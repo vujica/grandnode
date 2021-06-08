@@ -36,6 +36,11 @@ namespace Grand.Domain.Catalog
         public string Description { get; set; }
 
         /// <summary>
+        /// Gets or sets the description
+        /// </summary>
+        public string BottomDescription { get; set; }
+
+        /// <summary>
         /// Gets or sets a value of used manufacturer template identifier
         /// </summary>
         public string ManufacturerTemplateId { get; set; }
@@ -147,7 +152,7 @@ namespace Grand.Domain.Catalog
         /// </summary>
         public virtual ICollection<string> AppliedDiscounts
         {
-            get { return _appliedDiscounts ?? (_appliedDiscounts = new List<string>()); }
+            get { return _appliedDiscounts ??= new List<string>(); }
             protected set { _appliedDiscounts = value; }
         }
     }

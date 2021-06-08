@@ -1,18 +1,16 @@
-﻿using FluentValidation.Attributes;
-using Grand.Domain.Catalog;
+﻿using Grand.Domain.Catalog;
 using Grand.Framework.Localization;
 using Grand.Framework.Mapping;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Messages;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Grand.Framework.Mvc.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Messages
 {
-    [Validator(typeof(ContactAttributeValidator))]
-    public partial class ContactAttributeModel : BaseGrandEntityModel, ILocalizedModel<ContactAttributeLocalizedModel>, IAclMappingModel, IStoreMappingModel
+    public partial class ContactAttributeModel : BaseEntityModel, ILocalizedModel<ContactAttributeLocalizedModel>, IAclMappingModel, IStoreMappingModel
     {
         public ContactAttributeModel()
         {
@@ -22,11 +20,11 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.TextPrompt")]
-        
+
         public string TextPrompt { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.IsRequired")]
@@ -35,7 +33,7 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.AttributeControlType")]
         public int AttributeControlTypeId { get; set; }
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.AttributeControlType")]
-        
+
         public string AttributeControlTypeName { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.DisplayOrder")]
@@ -81,7 +79,7 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         public string[] SelectedCustomerRoleIds { get; set; }
     }
 
-    public partial class ConditionModel : BaseGrandEntityModel
+    public partial class ConditionModel : BaseEntityModel
     {
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Condition.EnableCondition")]
         public bool EnableCondition { get; set; }
@@ -91,7 +89,7 @@ namespace Grand.Web.Areas.Admin.Models.Messages
 
         public IList<AttributeConditionModel> ConditionAttributes { get; set; }
     }
-    public partial class AttributeConditionModel : BaseGrandEntityModel
+    public partial class AttributeConditionModel : BaseEntityModel
     {
         public string Name { get; set; }
 
@@ -106,11 +104,11 @@ namespace Grand.Web.Areas.Admin.Models.Messages
         public string LanguageId { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.Name")]
-        
+
         public string Name { get; set; }
 
         [GrandResourceDisplayName("Admin.Catalog.Attributes.ContactAttributes.Fields.TextPrompt")]
-        
+
         public string TextPrompt { get; set; }
 
     }

@@ -1,21 +1,20 @@
-﻿using FluentValidation.Attributes;
-using Grand.Framework.Mapping;
-using Grand.Framework.Mvc.ModelBinding;
-using Grand.Framework.Mvc.Models;
-using Grand.Web.Areas.Admin.Validators.Documents;
+﻿using Grand.Framework.Mapping;
+using Grand.Core.ModelBinding;
+using Grand.Core.Models;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Grand.Framework.Mvc.Models;
 
 namespace Grand.Web.Areas.Admin.Models.Documents
 {
-    [Validator(typeof(DocumentValidator))]
-    public class DocumentModel : BaseGrandEntityModel, IAclMappingModel, IStoreMappingModel
+    public class DocumentModel : BaseEntityModel, IAclMappingModel, IStoreMappingModel
     {
         public DocumentModel()
         {
             AvailableDocumentTypes = new List<SelectListItem>();
+            AvailableSelesEmployees = new List<SelectListItem>();
         }
 
         [GrandResourceDisplayName("Admin.Documents.Document.Fields.Number")]
@@ -23,6 +22,10 @@ namespace Grand.Web.Areas.Admin.Models.Documents
 
         [GrandResourceDisplayName("Admin.Documents.Document.Fields.Name")]
         public string Name { get; set; }
+
+        [GrandResourceDisplayName("Admin.Documents.Document.Fields.SeId")]
+        public string SeId { get; set; }
+        public IList<SelectListItem> AvailableSelesEmployees { get; set; }
 
         [GrandResourceDisplayName("Admin.Documents.Document.Fields.Description")]
         public string Description { get; set; }

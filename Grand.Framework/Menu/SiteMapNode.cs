@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Routing;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 //code from Telerik MVC Extensions
 namespace Grand.Framework.Menu
@@ -11,8 +10,8 @@ namespace Grand.Framework.Menu
         /// </summary>
         public SiteMapNode()
         {
-            RouteValues = new RouteValueDictionary();
             ChildNodes = new List<SiteMapNode>();
+            PermissionNames = new List<string>();
         }
 
         /// <summary>
@@ -21,9 +20,9 @@ namespace Grand.Framework.Menu
         public string SystemName { get; set; }
 
         /// <summary>
-        /// Gets or sets the title.
+        /// Gets or sets the resource name.
         /// </summary>
-        public string Title { get; set; }
+        public string ResourceName { get; set; }
 
         /// <summary>
         /// Gets or sets the name of the controller.
@@ -35,10 +34,6 @@ namespace Grand.Framework.Menu
         /// </summary>
         public string ActionName { get; set; }
 
-        /// <summary>
-        /// Gets or sets the route values.
-        /// </summary>
-        public RouteValueDictionary RouteValues { get; set; }
 
         /// <summary>
         /// Gets or sets the URL.
@@ -64,5 +59,15 @@ namespace Grand.Framework.Menu
         /// Gets or sets a value indicating whether to open url in new tab (window) or not
         /// </summary>
         public bool OpenUrlInNewTab { get; set; }
+
+        /// <summary>
+        /// Gets or sets permissions
+        /// </summary>
+        public IList<string> PermissionNames { get; set; }
+
+        /// <summary>
+        /// Gets or sets all permissions
+        /// </summary>
+        public bool AllPermissions { get; set; }
     }
 }

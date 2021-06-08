@@ -3,7 +3,6 @@
 @using Grand.Services.Media;
 @using Grand.Domain.Media
 @inject IDownloadService downloadService
-@inject CatalogSettings catalogSettings
 <div class="attributes">
     <table class="table">
         @foreach (var attribute in Model)
@@ -11,7 +10,7 @@
             string controlId = string.Format("product_attribute_{0}", attribute.Id);
             string textPrompt = !string.IsNullOrEmpty(attribute.TextPrompt) ? attribute.TextPrompt : attribute.Name;
             <tr>
-                <td class="d-inline-flex w-100" id="@string.Format("product_attribute_label_{0}", attribute.Id)">
+                <td id="@string.Format("product_attribute_label_{0}", attribute.Id)">
                     <span class="text-prompt">
                         @textPrompt
                     </span>
@@ -119,8 +118,9 @@
                                 }
 
                                 //register CSS and JS
-                                Html.AddCssFileParts("~/scripts/fineuploader/fineuploader-4.2.2.min.css");
-                                Html.AddScriptParts(ResourceLocation.Footer, "~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js");
+                                @inject IPageHeadBuilder pagebuilder
+                                pagebuilder.AddCssFileParts(ResourceLocation.Head, "~/scripts/fineuploader/fineuploader-4.2.2.min.css");
+                                pagebuilder.AddScriptParts(ResourceLocation.Footer, "~/scripts/fineuploader/jquery.fineuploader-4.2.2.min.js");
 
                                 //ex. ['jpg', 'jpeg', 'png', 'gif'] or []
                                 var allowedFileExtensions = string.Join(", ", attribute.AllowedFileExtensions.Select(x => "'" + x.Trim() + "'").ToList());
@@ -291,12 +291,9 @@
     //dynamic update support
     var attributesHaveConditions = Model.Any(x => x.HasCondition);
     var attributesHaveAssociatedPictures = true;
-    var dynamicPriceUpdate = catalogSettings.AjaxProcessAttributeChange;
     var attributeChangeScriptsBuilder = new StringBuilder();
     var productId = Model.First().ProductId;
     var attributeChangeHandlerFuncName = string.Format("attribute_change_handler_{0}", productId);
-    if (dynamicPriceUpdate)
-    {
         //generate change event script
         foreach (var attribute in Model)
         {
@@ -399,5 +396,4 @@
                 @Html.Raw(attributeChangeScriptsBuilder.ToString())
             });
         </script>
-        }
     }

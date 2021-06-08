@@ -3,7 +3,7 @@
     //page title
     ViewBag.Title = T("Admin.PushNotifications").Text;
 }
-<form asp-area="Admin" asp-controller="Setting" asp-action="PushNotifications" method="post">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Setting" asp-action="PushNotifications" method="post">
     
     <div class="row">
         <div class="col-md-12">
@@ -33,7 +33,7 @@
                                 <div class="col-md-9">
                                     <label class="mt-checkbox mt-checkbox-outline control control-checkbox">
                                         <admin-input asp-for="Enabled" />
-                                         <div class="control__indicator"></div>
+                                        <div class="control__indicator"></div>
                                     </label>
                                 </div>
                             </div>
@@ -80,11 +80,17 @@
                                 </div>
                             </div>
                             <div class="form-group">
+                                <admin-label asp-for="AppId" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="AppId" />
+                                </div>
+                            </div>
+                            <div class="form-group">
                                 <admin-label asp-for="AllowGuestNotifications" />
                                 <div class="col-md-9">
                                     <label class="mt-checkbox mt-checkbox-outline control control-checkbox">
                                         <admin-input asp-for="AllowGuestNotifications" />
-                                         <div class="control__indicator"></div>
+                                        <div class="control__indicator"></div>
                                     </label>
                                 </div>
                             </div>

@@ -26,6 +26,11 @@ namespace Grand.Domain.Shipping
         public string VendorId { get; set; }
 
         /// <summary>
+        /// Gets or sets the sales employee identifier 
+        /// </summary>
+        public string SeId { get; set; }
+
+        /// <summary>
         /// Gets or sets the tracking number of this shipment
         /// </summary>
         public string TrackingNumber { get; set; }
@@ -65,7 +70,7 @@ namespace Grand.Domain.Shipping
         /// </summary>
         public virtual ICollection<ShipmentItem> ShipmentItems
         {
-            get { return _shipmentItems ?? (_shipmentItems = new List<ShipmentItem>()); }
+            get { return _shipmentItems ??= new List<ShipmentItem>(); }
             protected set { _shipmentItems = value; }
         }
     }

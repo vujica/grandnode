@@ -1,7 +1,8 @@
 ﻿using Grand.Api.Extensions;
+using Grand.Core;
 using Grand.Core.Configuration;
-using Grand.Core.Infrastructure;
 using Microsoft.AspNet.OData.Formatter;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -37,7 +38,7 @@ namespace Grand.Api.Infrastructure
                 services.AddSwaggerGen(c =>
                 {
                     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Grandnode API", Version = "v1" });
-                    c.AddSecurityDefinition("Bearer", //Name the security scheme
+                    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, //Name the security scheme
                         new OpenApiSecurityScheme {
                             Description = "JWT Authorization header using the Bearer scheme.",
                             Type = SecuritySchemeType.Http, //We set the scheme type to http since we're using bearer authentication
@@ -48,7 +49,7 @@ namespace Grand.Api.Infrastructure
                         {
                             new OpenApiSecurityScheme {
                                 Reference = new OpenApiReference{
-                                    Id = "Bearer",      //The name of the previously defined security scheme.
+                                    Id = JwtBearerDefaults.AuthenticationScheme,      //The name of the previously defined security scheme.
                                     Type = ReferenceType.SecurityScheme
                                 }
                             },
@@ -56,7 +57,6 @@ namespace Grand.Api.Infrastructure
                         }
                     });
                     c.OperationFilter<AddParamOperationFilter>();
-                    c.SchemaFilter<ExcludeSchemaFilter>();
                     c.EnableAnnotations();
                 });
 
@@ -64,7 +64,7 @@ namespace Grand.Api.Infrastructure
             }
         }
 
-        public int Order => 1001;
+        public int Order => 900;
 
         private void SetOutputFormatters(IServiceCollection services)
         {

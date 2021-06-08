@@ -3,40 +3,30 @@ using Grand.Domain.Data;
 using Grand.Domain.Catalog;
 using Grand.Services.Commands.Models.Catalog;
 using MediatR;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Grand.Services.Catalog;
+using Grand.Core.Caching.Constants;
 
 namespace Grand.Services.Commands.Handlers.Catalog
 {
     public class UpdateProductReviewTotalsCommandHandler : IRequestHandler<UpdateProductReviewTotalsCommand, bool>
     {
-        #region Constants
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : product ID
-        /// </remarks>
-        private const string PRODUCTS_BY_ID_KEY = "Grand.product.id-{0}";
-
-        #endregion
-
         #region Fields
 
         private readonly IRepository<Product> _productRepository;
-        private readonly IRepository<ProductReview> _productReviewRepository;
-        private readonly ICacheManager _cacheManager;
+        private readonly IProductReviewService _productReviewService;
+        private readonly ICacheBase _cacheBase;
 
         #endregion
 
-        public UpdateProductReviewTotalsCommandHandler(IRepository<Product> productRepository, IRepository<ProductReview> productReviewRepository, ICacheManager cacheManager)
+        public UpdateProductReviewTotalsCommandHandler(IRepository<Product> productRepository, IProductReviewService productReviewService, ICacheBase cacheManager)
         {
             _productRepository = productRepository;
-            _productReviewRepository = productReviewRepository;
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
+            _productReviewService = productReviewService;
         }
 
         public async Task<bool> Handle(UpdateProductReviewTotalsCommand request, CancellationToken cancellationToken)
@@ -48,7 +38,10 @@ namespace Grand.Services.Commands.Handlers.Catalog
             int notApprovedRatingSum = 0;
             int approvedTotalReviews = 0;
             int notApprovedTotalReviews = 0;
-            var reviews = await _productReviewRepository.Collection.Find(new BsonDocument("ProductId", request.Product.Id)).ToListAsync();
+
+            var reviews = await _productReviewService.GetAllProductReviews(null, null, null, null, null,
+                null, request.Product.Id, 0, int.MaxValue);
+                        
             foreach (var pr in reviews)
             {
                 if (pr.IsApproved)
@@ -78,7 +71,7 @@ namespace Grand.Services.Commands.Handlers.Catalog
             await _productRepository.Collection.UpdateOneAsync(filter, update);
 
             //cache
-            await _cacheManager.RemoveAsync(string.Format(PRODUCTS_BY_ID_KEY, request.Product.Id));
+            await _cacheBase.RemoveAsync(string.Format(CacheKey.PRODUCTS_BY_ID_KEY, request.Product.Id));
 
             return true;
         }

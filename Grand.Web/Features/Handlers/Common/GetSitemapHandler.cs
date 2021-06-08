@@ -1,7 +1,6 @@
 ﻿using Grand.Core.Caching;
 using Grand.Domain.Blogs;
 using Grand.Domain.Common;
-using Grand.Domain.Forums;
 using Grand.Domain.Knowledgebase;
 using Grand.Domain.News;
 using Grand.Services.Blogs;
@@ -20,6 +19,7 @@ using Grand.Web.Models.Common;
 using Grand.Web.Models.Knowledgebase;
 using Grand.Web.Models.Topics;
 using MediatR;
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,7 +28,7 @@ namespace Grand.Web.Features.Handlers.Common
 {
     public class GetSitemapHandler : IRequestHandler<GetSitemap, SitemapModel>
     {
-        private readonly ICacheManager _cacheManager;
+        private readonly ICacheBase _cacheBase;
         private readonly ICategoryService _categoryService;
         private readonly IManufacturerService _manufacturerService;
         private readonly IProductService _productService;
@@ -38,11 +38,10 @@ namespace Grand.Web.Features.Handlers.Common
 
         private readonly CommonSettings _commonSettings;
         private readonly BlogSettings _blogSettings;
-        private readonly ForumSettings _forumSettings;
         private readonly NewsSettings _newsSettings;
         private readonly KnowledgebaseSettings _knowledgebaseSettings;
 
-        public GetSitemapHandler(ICacheManager cacheManager,
+        public GetSitemapHandler(ICacheBase cacheManager,
             ICategoryService categoryService,
             IManufacturerService manufacturerService,
             IProductService productService,
@@ -51,11 +50,10 @@ namespace Grand.Web.Features.Handlers.Common
             IKnowledgebaseService knowledgebaseService,
             CommonSettings commonSettings,
             BlogSettings blogSettings,
-            ForumSettings forumSettings,
             NewsSettings newsSettings,
             KnowledgebaseSettings knowledgebaseSettings)
         {
-            _cacheManager = cacheManager;
+            _cacheBase = cacheManager;
             _categoryService = categoryService;
             _manufacturerService = manufacturerService;
             _productService = productService;
@@ -65,7 +63,6 @@ namespace Grand.Web.Features.Handlers.Common
 
             _commonSettings = commonSettings;
             _blogSettings = blogSettings;
-            _forumSettings = forumSettings;
             _newsSettings = newsSettings;
             _knowledgebaseSettings = knowledgebaseSettings;
         }
@@ -76,11 +73,10 @@ namespace Grand.Web.Features.Handlers.Common
                 request.Language.Id,
                 string.Join(",", request.Customer.GetCustomerRoleIds()),
                 request.Store.Id);
-            var cachedModel = await _cacheManager.GetAsync(cacheKey, async () =>
+            var cachedModel = await _cacheBase.GetAsync(cacheKey, async () =>
             {
                 var model = new SitemapModel {
                     BlogEnabled = _blogSettings.Enabled,
-                    ForumEnabled = _forumSettings.ForumsEnabled,
                     NewsEnabled = _newsSettings.Enabled,
                     KnowledgebaseEnabled = _knowledgebaseSettings.Enabled
                 };
@@ -114,12 +110,13 @@ namespace Grand.Web.Features.Handlers.Common
                 }
 
                 //topics
+                var now = DateTime.UtcNow;
                 var topics = (await _topicService.GetAllTopics(request.Store.Id))
-                    .Where(t => t.IncludeInSitemap)
+                    .Where(t => t.IncludeInSitemap && (!t.StartDateUtc.HasValue || t.StartDateUtc < now) && (!t.EndDateUtc.HasValue || t.EndDateUtc > now))
                     .ToList();
                 model.Topics = topics.Select(topic => new TopicModel {
                     Id = topic.Id,
-                    SystemName = topic.SystemName,
+                    SystemName = topic.GetLocalized(x => x.SystemName, request.Language.Id),
                     IncludeInSitemap = topic.IncludeInSitemap,
                     IsPasswordProtected = topic.IsPasswordProtected,
                     Title = topic.GetLocalized(x => x.Title, request.Language.Id),
